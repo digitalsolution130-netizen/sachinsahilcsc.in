@@ -1,0 +1,24 @@
+{
+  "name": "digital-solutions-portal",
+  "version": "1.0.0",
+  "description": "Digital Solutions Portal - Jan Seva & E-Governance Services (MERN Stack)",
+  "scripts": {
+    "start": "npm --prefix frontend run dev",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "dev:backend": "npm --prefix backend start",
+    "build:frontend": "npm --prefix frontend run build"
+  },
+  "keywords": [
+    "mern",
+    "react",
+    "vite",
+    "e-governance",
+    "digital-india",
+    "csc",
+    "mongodb",
+    "nodemailer",
+    "cloudinary"
+  ],
+  "author": "Digital Solutions",
+  "license": "ISC"
+}
