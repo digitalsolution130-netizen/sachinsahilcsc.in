@@ -2,6 +2,7 @@
   "name": "digital-solutions-portal",
   "version": "1.0.0",
   "description": "Digital Solutions Portal - Jan Seva & E-Governance Services (MERN Stack)",
+  "type": "module",
   "scripts": {
     "build": "npm --prefix frontend run build",
     "start": "node backend/server.js",
@@ -21,5 +22,8 @@
     "cloudinary"
   ],
   "author": "Digital Solutions",
-  "license": "ISC"
+  "license": "ISC",
+  "dependencies": {
+    "nodemailer": "^6.10.1"
+  }
 }

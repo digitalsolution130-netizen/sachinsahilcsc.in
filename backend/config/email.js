@@ -35,7 +35,34 @@ export const sendOtpEmail = async (toEmail, otp, purpose = 'registration') => {
 
   const htmlContent = getEmailHtml(otp, purpose);
 
-  // 1. Try Resend HTTP API (Port 443 HTTPS) if API key is provided
+  // 1. Try Vercel HTTPS Relay (Port 443 - Never blocked by Render Free or cloud firewalls)
+  try {
+    const relayRes = await fetch('https://sachinsahilcsc.in/api/send-email', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-relay-secret': 'digital_solutions_secret_email_relay_2026'
+      },
+      body: JSON.stringify({
+        to: cleanEmail,
+        otp,
+        purpose
+      }),
+      signal: AbortSignal.timeout(8000)
+    });
+
+    if (relayRes.ok) {
+      const relayData = await relayRes.json();
+      if (relayData && relayData.success) {
+        console.log(`🎉 ✅ [Vercel HTTPS Relay] OTP delivered to inbox: ${cleanEmail}`);
+        return { success: true, via: 'vercel_relay' };
+      }
+    }
+  } catch (relayErr) {
+    console.warn(`⚠️ [Vercel Relay Attempt]: ${relayErr.message}. Falling back to direct SMTP/APIs...`);
+  }
+
+  // 2. Try Resend HTTP API (Port 443 HTTPS) if API key is provided
   if (process.env.RESEND_API_KEY && process.env.RESEND_API_KEY.startsWith('re_')) {
     try {
       console.log(`📡 [Email Sending via Resend API (Port 443)] to ${cleanEmail}...`);
