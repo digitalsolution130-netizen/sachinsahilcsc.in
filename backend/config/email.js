@@ -1,5 +1,29 @@
 import nodemailer from 'nodemailer';
 
+// Cached reusable pooled transporter for fast connection reuse
+let cachedTransporter = null;
+
+function getPooledTransporter(emailUser, emailPass) {
+  if (!cachedTransporter) {
+    cachedTransporter = nodemailer.createTransport({
+      pool: true,
+      host: 'smtp.gmail.com',
+      port: 465,
+      secure: true,
+      auth: {
+        user: emailUser,
+        pass: emailPass
+      },
+      maxConnections: 5,
+      maxMessages: 100,
+      connectionTimeout: 10000,
+      greetingTimeout: 10000,
+      socketTimeout: 15000
+    });
+  }
+  return cachedTransporter;
+}
+
 export const sendOtpEmail = async (toEmail, otp, purpose = 'registration') => {
   const cleanEmail = toEmail.trim().toLowerCase();
   const emailUser = process.env.EMAIL_USER || 'digitalsolution130@gmail.com';
@@ -11,7 +35,7 @@ export const sendOtpEmail = async (toEmail, otp, purpose = 'registration') => {
 
   const htmlContent = getEmailHtml(otp, purpose);
 
-  // 1. Try Resend HTTP API (Port 443 HTTPS - Never blocked by cloud firewalls)
+  // 1. Try Resend HTTP API (Port 443 HTTPS) if API key is provided
   if (process.env.RESEND_API_KEY && process.env.RESEND_API_KEY.startsWith('re_')) {
     try {
       console.log(`📡 [Email Sending via Resend API (Port 443)] to ${cleanEmail}...`);
@@ -41,7 +65,7 @@ export const sendOtpEmail = async (toEmail, otp, purpose = 'registration') => {
     }
   }
 
-  // 2. Try Brevo HTTP REST API (Port 443 HTTPS)
+  // 2. Try Brevo HTTP REST API (Port 443 HTTPS) if key is provided
   if (process.env.BREVO_API_KEY) {
     try {
       console.log(`📡 [Email Sending via Brevo API (Port 443)] to ${cleanEmail}...`);
@@ -68,22 +92,10 @@ export const sendOtpEmail = async (toEmail, otp, purpose = 'registration') => {
     }
   }
 
-  // 3. Try Gmail SMTP (Fast 2.5s timeout - works on localhost, VPS, and paid cloud)
+  // 3. Fast Pooled Gmail SMTP (Port 465 SSL)
   try {
-    const transporter465 = nodemailer.createTransport({
-      host: 'smtp.gmail.com',
-      port: 465,
-      secure: true,
-      auth: {
-        user: emailUser,
-        pass: emailPass
-      },
-      connectionTimeout: 2500,
-      greetingTimeout: 2500,
-      socketTimeout: 3500
-    });
-
-    await transporter465.sendMail({
+    const transporter = getPooledTransporter(emailUser, emailPass);
+    await transporter.sendMail({
       from: `"Digital Solutions Portal" <${emailUser}>`,
       to: cleanEmail,
       subject: subjectTitle,
@@ -92,7 +104,7 @@ export const sendOtpEmail = async (toEmail, otp, purpose = 'registration') => {
     console.log(`\n🎉 ✅ [Nodemailer Port 465] OTP delivered to inbox: ${cleanEmail}\n`);
     return { success: true, via: 'gmail_ssl' };
   } catch (err465) {
-    console.warn(`⚠️ [Port 465]: ${err465.message}. Trying Port 587...`);
+    console.warn(`⚠️ [Port 465]: ${err465.message}. Trying Port 587 STARTTLS...`);
 
     try {
       const transporter587 = nodemailer.createTransport({
@@ -103,9 +115,9 @@ export const sendOtpEmail = async (toEmail, otp, purpose = 'registration') => {
           user: emailUser,
           pass: emailPass
         },
-        connectionTimeout: 2500,
-        greetingTimeout: 2500,
-        socketTimeout: 3500
+        connectionTimeout: 8000,
+        greetingTimeout: 8000,
+        socketTimeout: 10000
       });
 
       await transporter587.sendMail({
@@ -117,13 +129,10 @@ export const sendOtpEmail = async (toEmail, otp, purpose = 'registration') => {
       console.log(`\n🎉 ✅ [Nodemailer Port 587] OTP delivered to inbox: ${cleanEmail}\n`);
       return { success: true, via: 'gmail_starttls' };
     } catch (err587) {
-      console.warn(`⚠️ [Cloud Hosting Blocked Outbound SMTP Sockets]: ${err587.message}`);
-      // Cloud provider firewall (Render Free) blocks raw SMTP ports 465/587
+      console.error(`❌ [SMTP Error]: ${err587.message}`);
       return { 
         success: false, 
-        smtpBlocked: true, 
-        error: 'Cloud provider blocked outbound SMTP. Use HTTPS REST API.',
-        otp 
+        error: err587.message 
       };
     }
   }

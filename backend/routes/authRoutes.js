@@ -66,22 +66,22 @@ router.post('/register-send-otp', async (req, res) => {
       memoryOtps.set(cleanEmail, { otp, expiresAt: Date.now() + 10 * 60 * 1000 });
     }
 
-    // Send email via fast Nodemailer / HTTP API
-    const emailResult = await sendOtpEmail(cleanEmail, otp, 'registration');
-
-    if (emailResult.success) {
-      return res.status(200).json({
-        success: true,
-        message: `OTP ${cleanEmail} पर भेजा गया है। कृपया इनबॉक्स या स्पैम फोल्डर चेक करें।`
+    // Send email asynchronously in background for instantaneous (<50ms) response
+    sendOtpEmail(cleanEmail, otp, 'registration')
+      .then((emailRes) => {
+        if (emailRes && emailRes.success) {
+          console.log(`✅ [OTP Delivery] Registration OTP sent to ${cleanEmail}`);
+        } else {
+          console.error(`⚠️ [OTP Delivery Warning] ${cleanEmail}:`, emailRes?.error);
+        }
+      })
+      .catch((err) => {
+        console.error(`❌ [OTP Delivery Exception] ${cleanEmail}:`, err.message);
       });
-    }
 
-    // If cloud provider (e.g. Render Free) blocked outbound SMTP sockets:
-    console.warn(`[Cloud Notice] Outbound SMTP blocked on host. Providing backup OTP for ${cleanEmail}`);
     return res.status(200).json({
       success: true,
-      message: `OTP जनरेट हो गया है! (क्लाउड होस्ट पर ईमेल ब्लॉक होने के कारण OTP: ${otp})`,
-      backupOtp: otp
+      message: `OTP आपके ईमेल (${cleanEmail}) पर भेज दिया गया है। कृपया अपना इनबॉक्स या स्पैम फोल्डर चेक करें।`
     });
   } catch (error) {
     console.error('Register send OTP error:', error);
@@ -297,20 +297,22 @@ router.post('/forgot-password-otp', async (req, res) => {
       memoryOtps.set(cleanEmail, { otp, expiresAt: Date.now() + 10 * 60 * 1000 });
     }
 
-    const emailResult = await sendOtpEmail(cleanEmail, otp, 'reset');
-
-    if (emailResult.success) {
-      return res.status(200).json({
-        success: true,
-        message: `पासवर्ड रीसेट OTP ${cleanEmail} पर भेजा गया है।`
+    // Send email asynchronously in background for instantaneous (<50ms) response
+    sendOtpEmail(cleanEmail, otp, 'reset')
+      .then((emailRes) => {
+        if (emailRes && emailRes.success) {
+          console.log(`✅ [Reset OTP Delivery] Reset OTP sent to ${cleanEmail}`);
+        } else {
+          console.error(`⚠️ [Reset OTP Delivery Warning] ${cleanEmail}:`, emailRes?.error);
+        }
+      })
+      .catch((err) => {
+        console.error(`❌ [Reset OTP Delivery Exception] ${cleanEmail}:`, err.message);
       });
-    }
 
-    console.warn(`[Cloud Notice] Outbound SMTP blocked on host. Providing backup OTP for reset: ${cleanEmail}`);
     return res.status(200).json({
       success: true,
-      message: `पासवर्ड रीसेट OTP जनरेट हो गया है! (क्लाउड होस्ट पर ईमेल ब्लॉक होने के कारण OTP: ${otp})`,
-      backupOtp: otp
+      message: `पासवर्ड रीसेट OTP आपके ईमेल (${cleanEmail}) पर भेज दिया गया है। कृपया अपना इनबॉक्स चेक करें।`
     });
   } catch (error) {
     console.error('Forgot password OTP error:', error);
