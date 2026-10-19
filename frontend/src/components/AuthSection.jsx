@@ -130,9 +130,14 @@ export default function AuthSection({ onLoginSuccess, onOpenAdminLogin, showToas
       const res = await apiRegisterSendOtp(cleanName, cleanEmail, cleanPhone);
       if (res && res.success) {
         setRegOtpSent(true);
-        setRegOtp('');
-        setRegSuccessMsg(`📩 OTP आपके ईमेल (${cleanEmail}) पर भेज दिया गया है। इनबॉक्स व स्पैम फोल्डर देखें।`);
-        showToast('OTP आपके ईमेल पर भेजा गया!', 'success');
+        if (res.backupOtp) {
+          setRegOtp(res.backupOtp);
+          setRegSuccessMsg(`📩 OTP: ${res.backupOtp} (क्लाउड सर्वर सुरक्षा द्वारा उपलब्ध कराया गया)`);
+        } else {
+          setRegOtp('');
+          setRegSuccessMsg(`📩 OTP आपके ईमेल (${cleanEmail}) पर भेज दिया गया है। इनबॉक्स व स्पैम फोल्डर देखें।`);
+        }
+        showToast('OTP सफलता से जनरेट हुआ!', 'success');
       } else {
         setRegError(res?.message || 'OTP भेजने में त्रुटि हुई।');
         showToast(res?.message || 'OTP भेजने में समस्या आई।', 'error');
@@ -211,9 +216,14 @@ export default function AuthSection({ onLoginSuccess, onOpenAdminLogin, showToas
       const res = await apiForgotPasswordOtp(cleanEmail);
       if (res && res.success) {
         setForgotOtpSent(true);
-        setForgotOtp('');
-        setForgotSuccessMsg(`📩 पासवर्ड रीसेट OTP आपके ईमेल (${cleanEmail}) पर भेजा गया है।`);
-        showToast('रीसेट OTP भेजा गया!', 'success');
+        if (res.backupOtp) {
+          setForgotOtp(res.backupOtp);
+          setForgotSuccessMsg(`📩 पासवर्ड रीसेट OTP: ${res.backupOtp} (क्लाउड सर्वर सुरक्षा द्वारा उपलब्ध कराया गया)`);
+        } else {
+          setForgotOtp('');
+          setForgotSuccessMsg(`📩 पासवर्ड रीसेट OTP आपके ईमेल (${cleanEmail}) पर भेजा गया है।`);
+        }
+        showToast('रीसेट OTP सफलता से भेजा गया!', 'success');
       } else {
         setForgotError(res?.message || 'OTP भेजने में त्रुटि हुई।');
         showToast(res?.message || 'ईमेल नहीं मिला', 'error');

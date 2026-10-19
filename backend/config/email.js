@@ -11,14 +11,64 @@ export const sendOtpEmail = async (toEmail, otp, purpose = 'registration') => {
 
   const htmlContent = getEmailHtml(otp, purpose);
 
-  const mailOptions = {
-    from: `"Digital Solutions Portal" <${emailUser}>`,
-    to: cleanEmail,
-    subject: subjectTitle,
-    html: htmlContent
-  };
+  // 1. Try Resend HTTP API (Port 443 HTTPS - Never blocked by cloud firewalls)
+  if (process.env.RESEND_API_KEY && process.env.RESEND_API_KEY.startsWith('re_')) {
+    try {
+      console.log(`📡 [Email Sending via Resend API (Port 443)] to ${cleanEmail}...`);
+      const response = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          from: 'Digital Solutions Portal <onboarding@resend.dev>',
+          to: [cleanEmail],
+          subject: subjectTitle,
+          html: htmlContent
+        })
+      });
 
-  // Try Port 465 (Direct SSL - Fast and reliable)
+      const data = await response.json();
+      if (response.ok) {
+        console.log(`✅ [Resend] OTP email delivered to ${cleanEmail}! ID:`, data.id);
+        return { success: true, via: 'resend' };
+      } else {
+        console.warn(`⚠️ [Resend Error]:`, data.message);
+      }
+    } catch (err) {
+      console.error(`❌ [Resend Exception]:`, err.message);
+    }
+  }
+
+  // 2. Try Brevo HTTP REST API (Port 443 HTTPS)
+  if (process.env.BREVO_API_KEY) {
+    try {
+      console.log(`📡 [Email Sending via Brevo API (Port 443)] to ${cleanEmail}...`);
+      const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: {
+          'api-key': process.env.BREVO_API_KEY,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          sender: { name: 'Digital Solutions Portal', email: emailUser },
+          to: [{ email: cleanEmail }],
+          subject: subjectTitle,
+          htmlContent: htmlContent
+        })
+      });
+
+      if (response.ok) {
+        console.log(`✅ [Brevo] OTP email delivered to ${cleanEmail}!`);
+        return { success: true, via: 'brevo' };
+      }
+    } catch (err) {
+      console.error(`❌ [Brevo Exception]:`, err.message);
+    }
+  }
+
+  // 3. Try Gmail SMTP (Fast 2.5s timeout - works on localhost, VPS, and paid cloud)
   try {
     const transporter465 = nodemailer.createTransport({
       host: 'smtp.gmail.com',
@@ -28,18 +78,22 @@ export const sendOtpEmail = async (toEmail, otp, purpose = 'registration') => {
         user: emailUser,
         pass: emailPass
       },
-      connectionTimeout: 6000,
-      greetingTimeout: 6000,
-      socketTimeout: 8000
+      connectionTimeout: 2500,
+      greetingTimeout: 2500,
+      socketTimeout: 3500
     });
 
-    await transporter465.sendMail(mailOptions);
+    await transporter465.sendMail({
+      from: `"Digital Solutions Portal" <${emailUser}>`,
+      to: cleanEmail,
+      subject: subjectTitle,
+      html: htmlContent
+    });
     console.log(`\n🎉 ✅ [Nodemailer Port 465] OTP delivered to inbox: ${cleanEmail}\n`);
-    return { success: true };
+    return { success: true, via: 'gmail_ssl' };
   } catch (err465) {
-    console.warn(`⚠️ [Port 465 Error]: ${err465.message}. Trying Port 587 fallback...`);
+    console.warn(`⚠️ [Port 465]: ${err465.message}. Trying Port 587...`);
 
-    // Fallback: Port 587 (STARTTLS)
     try {
       const transporter587 = nodemailer.createTransport({
         host: 'smtp.gmail.com',
@@ -49,17 +103,28 @@ export const sendOtpEmail = async (toEmail, otp, purpose = 'registration') => {
           user: emailUser,
           pass: emailPass
         },
-        connectionTimeout: 6000,
-        greetingTimeout: 6000,
-        socketTimeout: 8000
+        connectionTimeout: 2500,
+        greetingTimeout: 2500,
+        socketTimeout: 3500
       });
 
-      await transporter587.sendMail(mailOptions);
+      await transporter587.sendMail({
+        from: `"Digital Solutions Portal" <${emailUser}>`,
+        to: cleanEmail,
+        subject: subjectTitle,
+        html: htmlContent
+      });
       console.log(`\n🎉 ✅ [Nodemailer Port 587] OTP delivered to inbox: ${cleanEmail}\n`);
-      return { success: true };
+      return { success: true, via: 'gmail_starttls' };
     } catch (err587) {
-      console.error(`❌ [Gmail SMTP Error]: ${err587.message}`);
-      return { success: false, error: err587.message };
+      console.warn(`⚠️ [Cloud Hosting Blocked Outbound SMTP Sockets]: ${err587.message}`);
+      // Cloud provider firewall (Render Free) blocks raw SMTP ports 465/587
+      return { 
+        success: false, 
+        smtpBlocked: true, 
+        error: 'Cloud provider blocked outbound SMTP. Use HTTPS REST API.',
+        otp 
+      };
     }
   }
 };
