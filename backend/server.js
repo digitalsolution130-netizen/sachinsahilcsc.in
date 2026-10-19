@@ -27,6 +27,8 @@ app.use('/api/wallet', walletRoutes);
 app.use('/api/applications', applicationRoutes);
 app.use('/api/admin', adminRoutes);
 
+import { sendOtpEmail } from './config/email.js';
+
 // Health Check API
 app.get('/api/health', (req, res) => {
   res.status(200).json({
@@ -37,6 +39,23 @@ app.get('/api/health', (req, res) => {
     email: process.env.EMAIL_USER && process.env.EMAIL_USER !== 'your_email@gmail.com' ? 'Configured (Nodemailer)' : 'Dev Console Mode',
     timestamp: new Date().toISOString()
   });
+});
+
+// Diagnostic Email Test API
+app.get('/api/debug-email', async (req, res) => {
+  const target = req.query.to || 'digitalsolution130@gmail.com';
+  try {
+    const result = await sendOtpEmail(target, '123456', 'registration');
+    return res.json({
+      success: result.success,
+      via: result.via,
+      error: result.error,
+      emailUser: process.env.EMAIL_USER || 'default',
+      hasPass: !!process.env.EMAIL_PASS
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
 });
 
 // Error handling middleware
