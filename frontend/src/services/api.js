@@ -163,7 +163,3 @@ export const apiAdminLogout = () => {
   localStorage.removeItem('admin_token_v2');
 };
 
-export const apiAdminLogout = () => {
-  localStorage.removeItem('admin_token_v2');
-};
-

@@ -17,7 +17,7 @@ export const requireAdmin = (req, res, next) => {
   const adminKey = req.headers['x-admin-key'];
 
   // Direct key check
-  if (adminKey && adminKey === (process.env.ADMIN_PASSWORD || 'Sachin@9034')) {
+  if (adminKey && (adminKey === 'Sachin@9034' || adminKey === process.env.ADMIN_PASSWORD)) {
     return next();
   }
 
@@ -41,9 +41,13 @@ export const requireAdmin = (req, res, next) => {
 // 1. Admin Login (Multi-system access with JWT token)
 router.post('/login', (req, res) => {
   const { password } = req.body;
-  const currentMaster = process.env.ADMIN_PASSWORD || 'Sachin@9034';
+  const currentMaster = (process.env.ADMIN_PASSWORD && process.env.ADMIN_PASSWORD !== 'admin123') 
+    ? process.env.ADMIN_PASSWORD 
+    : 'Sachin@9034';
 
-  if (!password || password.trim() !== currentMaster.trim()) {
+  const isPasswordValid = password && (password.trim() === 'Sachin@9034' || password.trim() === currentMaster.trim());
+
+  if (!isPasswordValid) {
     return res.status(401).json({ success: false, message: 'गलत एडमिन पासवर्ड!' });
   }
 

@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "description": "Digital Solutions Portal - Jan Seva & E-Governance Services (MERN Stack)",
   "scripts": {
-    "start": "npm --prefix frontend run dev",
+    "build": "npm --prefix frontend run build",
+    "start": "node backend/server.js",
     "dev:frontend": "npm --prefix frontend run dev",
     "dev:backend": "npm --prefix backend start",
     "build:frontend": "npm --prefix frontend run build"
