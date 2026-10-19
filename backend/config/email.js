@@ -1,86 +1,75 @@
 import nodemailer from 'nodemailer';
 
-export const sendOtpEmail = async (toEmail, otp) => {
+export const sendOtpEmail = async (toEmail, otp, purpose = 'registration') => {
   const cleanEmail = toEmail.trim().toLowerCase();
+  const emailUser = process.env.EMAIL_USER || 'digitalsolution130@gmail.com';
+  const emailPass = (process.env.EMAIL_PASS || 'xhiidlfsadbdqrsp').replace(/\s+/g, '');
 
-  // 1. Check if Resend API Key is provided
-  if (process.env.RESEND_API_KEY && process.env.RESEND_API_KEY.startsWith('re_')) {
+  const subjectTitle = purpose === 'reset'
+    ? `🔐 Password Reset OTP: ${otp} | Digital Solutions Portal`
+    : `🏛️ Your Verification OTP: ${otp} | Digital Solutions Portal`;
+
+  const htmlContent = getEmailHtml(otp, purpose);
+
+  const mailOptions = {
+    from: `"Digital Solutions Portal" <${emailUser}>`,
+    to: cleanEmail,
+    subject: subjectTitle,
+    html: htmlContent
+  };
+
+  // Try Port 465 (Direct SSL - Fast and reliable)
+  try {
+    const transporter465 = nodemailer.createTransport({
+      host: 'smtp.gmail.com',
+      port: 465,
+      secure: true,
+      auth: {
+        user: emailUser,
+        pass: emailPass
+      },
+      connectionTimeout: 6000,
+      greetingTimeout: 6000,
+      socketTimeout: 8000
+    });
+
+    await transporter465.sendMail(mailOptions);
+    console.log(`\n🎉 ✅ [Nodemailer Port 465] OTP delivered to inbox: ${cleanEmail}\n`);
+    return { success: true };
+  } catch (err465) {
+    console.warn(`⚠️ [Port 465 Error]: ${err465.message}. Trying Port 587 fallback...`);
+
+    // Fallback: Port 587 (STARTTLS)
     try {
-      console.log(`📡 [Email Sending via Resend API] to ${cleanEmail}...`);
-      const response = await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          from: 'Digital Solutions Portal <onboarding@resend.dev>',
-          to: [cleanEmail],
-          subject: `🏛️ Your Verification OTP: ${otp} | Digital Solutions Portal`,
-          html: getEmailHtml(otp)
-        })
-      });
-
-      const data = await response.json();
-      if (response.ok) {
-        console.log(`✅ [Resend] OTP email successfully delivered to ${cleanEmail}! ID:`, data.id);
-        return { success: true, devMode: false };
-      } else {
-        console.warn(`⚠️ [Resend Error]:`, data.message);
-      }
-    } catch (err) {
-      console.error(`❌ [Resend Exception]:`, err.message);
-    }
-  }
-
-  // 2. Check if Gmail / SMTP Credentials are provided
-  const isGmailConfigured = 
-    process.env.EMAIL_USER && 
-    process.env.EMAIL_USER !== 'your_email@gmail.com' &&
-    process.env.EMAIL_PASS && 
-    process.env.EMAIL_PASS !== 'your_gmail_app_password';
-
-  if (isGmailConfigured) {
-    try {
-      console.log(`📡 [Email Sending via Gmail/Nodemailer] to ${cleanEmail}...`);
-      const transporter = nodemailer.createTransport({
-        service: 'gmail',
+      const transporter587 = nodemailer.createTransport({
+        host: 'smtp.gmail.com',
+        port: 587,
+        secure: false,
         auth: {
-          user: process.env.EMAIL_USER,
-          pass: process.env.EMAIL_PASS.replace(/\s+/g, '') // remove spaces if pasted like abcd efgh ijkl mnop
-        }
+          user: emailUser,
+          pass: emailPass
+        },
+        connectionTimeout: 6000,
+        greetingTimeout: 6000,
+        socketTimeout: 8000
       });
 
-      const mailOptions = {
-        from: `"Digital Solutions Portal" <${process.env.EMAIL_USER}>`,
-        to: cleanEmail,
-        subject: `🏛️ Your Verification OTP: ${otp} | Digital Solutions Portal`,
-        html: getEmailHtml(otp)
-      };
-
-      await transporter.sendMail(mailOptions);
-      console.log(`\n🎉 ✅ [Nodemailer] Real OTP email successfully delivered to inbox: ${cleanEmail}\n`);
-      return { success: true, devMode: false };
-    } catch (error) {
-      console.error(`❌ [Gmail Nodemailer Error]:`, error.message);
-      console.log(`📢 [FALLBACK OTP FOR TESTING] ${cleanEmail} -> [ ${otp} ]`);
-      return { success: true, devMode: true, otp, error: error.message };
+      await transporter587.sendMail(mailOptions);
+      console.log(`\n🎉 ✅ [Nodemailer Port 587] OTP delivered to inbox: ${cleanEmail}\n`);
+      return { success: true };
+    } catch (err587) {
+      console.error(`❌ [Gmail SMTP Error]: ${err587.message}`);
+      return { success: false, error: err587.message };
     }
   }
-
-  // 3. Fallback: If neither is configured yet, log OTP in console & return test OTP
-  console.log(`\n===============================================================`);
-  console.log(`📢 [EMAIL OTP NOT CONFIGURED YET IN .ENV]`);
-  console.log(`👉 To send real emails to inbox for FREE, provide either:`);
-  console.log(`   1) Free Gmail App Password: EMAIL_USER & EMAIL_PASS in backend/.env`);
-  console.log(`   2) Free Resend API Key: RESEND_API_KEY in backend/.env`);
-  console.log(`🔑 SIMULATED OTP FOR [ ${cleanEmail} ] IS: [ ${otp} ]`);
-  console.log(`===============================================================\n`);
-
-  return { success: true, devMode: true, otp };
 };
 
-function getEmailHtml(otp) {
+function getEmailHtml(otp, purpose) {
+  const isReset = purpose === 'reset';
+  const purposeHindi = isReset
+    ? 'पासवर्ड रीसेट (Password Reset)'
+    : 'नया नागरिक पंजीकरण (New Citizen Registration)';
+
   return `
     <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 540px; margin: 0 auto; background: #ffffff; border: 1px solid #cbd5e1; border-top: 6px solid #ff6b00; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.06);">
       <div style="background: #0a2540; padding: 22px; text-align: center; color: #ffffff;">
@@ -91,7 +80,7 @@ function getEmailHtml(otp) {
       <div style="padding: 28px 24px;">
         <p style="font-size: 15px; color: #334155; margin-top: 0;">नमस्ते (Hello),</p>
         <p style="font-size: 15px; color: #334155; line-height: 1.5;">
-          डिजिटल जन सेवा पोर्टल में सुरक्षित लॉगिन / नए नागरिक पंजीकरण के लिए आपका वन-टाइम पासवर्ड (OTP) नीचे दिया गया है:
+          डिजिटल जन सेवा पोर्टल में <strong>${purposeHindi}</strong> के लिए आपका वन-टाइम पासवर्ड (OTP) नीचे दिया गया है:
         </p>
 
         <div style="background: #fff8eb; border: 2px dashed #ff6b00; border-radius: 8px; padding: 18px; text-align: center; margin: 24px 0;">
@@ -100,14 +89,13 @@ function getEmailHtml(otp) {
           <span style="font-size: 12px; color: #64748b; display: block; margin-top: 6px;">यह OTP 10 मिनट के लिए मान्य है (Valid for 10 minutes)</span>
         </div>
 
-        <p style="font-size: 13px; color: #64748b; line-height: 1.5;">
-          ⚠️ <strong>सुरक्षा सूचना:</strong> इस OTP को किसी के साथ साझा न करें। डिजिटल सेवा केंद्र पोर्टल कभी भी आपसे पासवर्ड या OTP नहीं मांगता।
+        <p style="font-size: 13px; color: #64748b; margin-bottom: 0; line-height: 1.5;">
+          🔒 सुरक्षा सूचना: अपना OTP किसी के साथ साझा न करें। यदि आपने यह अनुरोध नहीं किया था, तो कृपया इस ईमेल को अनदेखा करें।
         </p>
       </div>
 
-      <div style="background: #f8fafc; padding: 14px 20px; border-top: 1px solid #e2e8f0; text-align: center; font-size: 12px; color: #64748b;">
-        📞 Helpline: 0130-7966590 | ✉️ Support: digitalsolution130@gmail.com<br>
-        © 2026 Digital Solutions Portal • Authorized CSC Jan Seva Kendra
+      <div style="background: #f8fafc; border-top: 1px solid #e2e8f0; padding: 14px; text-align: center; font-size: 12px; color: #94a3b8;">
+        © 2026 Digital Solutions E-Governance Portal | All Rights Reserved.
       </div>
     </div>
   `;

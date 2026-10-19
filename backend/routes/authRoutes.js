@@ -1,13 +1,15 @@
 import express from 'express';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import { User } from '../models/User.js';
 import { Otp } from '../models/Otp.js';
 import { sendOtpEmail } from '../config/email.js';
 import { getDbStatus } from '../config/db.js';
 
 const router = express.Router();
+const JWT_SECRET = process.env.JWT_SECRET || 'digital_solutions_jwt_secret_key_2026_secure';
 
-// In-memory fallback if MongoDB is not yet connected
+// In-memory fallback if MongoDB Atlas is momentarily disconnected
 const memoryUsers = new Map();
 const memoryOtps = new Map();
 
@@ -16,19 +18,43 @@ const isValidEmail = (email) => {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 };
 
-// 1. Send OTP to Email
-router.post('/send-otp', async (req, res) => {
+// Helper to hash password securely
+const hashPassword = (password) => {
+  return crypto.createHash('sha256').update(password.trim()).digest('hex');
+};
+
+// 1. REGISTRATION: Send OTP to Email (Check if already registered)
+router.post('/register-send-otp', async (req, res) => {
   try {
-    const { email } = req.body;
+    const { name, email, phone } = req.body;
 
     if (!email || !isValidEmail(email)) {
       return res.status(400).json({ success: false, message: 'कृपया मान्य ईमेल पता (Valid Email) दर्ज करें।' });
     }
 
     const cleanEmail = email.trim().toLowerCase();
+
+    // Check if user is already registered (Registration check)
+    if (getDbStatus()) {
+      const existingUser = await User.findOne({ email: cleanEmail });
+      if (existingUser && existingUser.password) {
+        return res.status(400).json({
+          success: false,
+          message: 'यह ईमेल पहले से पंजीकृत है! कृपया अपने पासवर्ड से लॉगिन करें।'
+        });
+      }
+    } else {
+      if (memoryUsers.has(cleanEmail) && memoryUsers.get(cleanEmail).password) {
+        return res.status(400).json({
+          success: false,
+          message: 'यह ईमेल पहले से पंजीकृत है! कृपया लॉगिन करें।'
+        });
+      }
+    }
+
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
-    // Store OTP in MongoDB if connected, otherwise in-memory
+    // Store OTP in MongoDB / Memory
     if (getDbStatus()) {
       await Otp.deleteMany({ email: cleanEmail });
       await Otp.create({
@@ -40,31 +66,42 @@ router.post('/send-otp', async (req, res) => {
       memoryOtps.set(cleanEmail, { otp, expiresAt: Date.now() + 10 * 60 * 1000 });
     }
 
-    // Send email via Nodemailer
-    const emailResult = await sendOtpEmail(cleanEmail, otp);
+    // Send email via fast Nodemailer (Port 465 SSL with 587 fallback)
+    const emailResult = await sendOtpEmail(cleanEmail, otp, 'registration');
+
+    if (!emailResult.success) {
+      console.warn('Email delivery failed:', emailResult.error);
+      return res.status(500).json({
+        success: false,
+        message: 'ईमेल भेजने में सर्वर समस्या आई। कृपया पुनः प्रयास करें।'
+      });
+    }
 
     return res.status(200).json({
       success: true,
-      message: `OTP ${cleanEmail} पर भेजा गया है। कृपया अपना इनबॉक्स / स्पैम फोल्डर चेक करें।`
+      message: `OTP ${cleanEmail} पर भेजा गया है। कृपया इनबॉक्स या स्पैम चेक करें।`
     });
   } catch (error) {
-    console.error('Send OTP error:', error);
-    return res.status(500).json({ success: false, message: 'OTP भेजने में समस्या आई। पुनः प्रयास करें।' });
+    console.error('Register send OTP error:', error);
+    return res.status(500).json({ success: false, message: 'OTP भेजने में त्रुटि हुई।' });
   }
 });
 
-// 2. Verify OTP & Login / Register
-router.post('/verify-otp', async (req, res) => {
+// 2. REGISTRATION: Verify OTP & Create Account with Password
+router.post('/register-complete', async (req, res) => {
   try {
-    const { email, otp, name } = req.body;
+    const { name, email, phone, otp, password } = req.body;
 
-    if (!email || !otp) {
-      return res.status(400).json({ success: false, message: 'ईमेल और OTP दोनों आवश्यक हैं।' });
+    if (!email || !otp || !password) {
+      return res.status(400).json({ success: false, message: 'ईमेल, OTP और पासवर्ड अनिवार्य हैं।' });
+    }
+
+    if (password.trim().length < 6) {
+      return res.status(400).json({ success: false, message: 'पासवर्ड कम से कम 6 अक्षरों का होना चाहिए।' });
     }
 
     const cleanEmail = email.trim().toLowerCase();
     const cleanOtp = otp.trim();
-
     let isMatch = false;
 
     if (getDbStatus()) {
@@ -85,58 +122,266 @@ router.post('/verify-otp', async (req, res) => {
       return res.status(400).json({ success: false, message: 'अमान्य अथवा समाप्त (Expired) OTP दर्ज किया गया है।' });
     }
 
-    // Find or create User
-    let user = null;
+    const hashedPassword = hashPassword(password);
     const userName = name && name.trim() ? name.trim() : cleanEmail.split('@')[0];
+    const userPhone = phone ? phone.trim() : '';
+
+    let user = null;
 
     if (getDbStatus()) {
       user = await User.findOne({ email: cleanEmail });
-      if (!user) {
+      if (user) {
+        user.name = userName;
+        user.phone = userPhone || user.phone;
+        user.password = hashedPassword;
+        await user.save();
+      } else {
         user = await User.create({
           name: userName,
           email: cleanEmail,
+          phone: userPhone,
+          password: hashedPassword,
           walletBalance: 0,
           role: 'citizen'
         });
       }
     } else {
-      if (!memoryUsers.has(cleanEmail)) {
-        user = {
-          _id: `mem_${Date.now()}`,
-          name: userName,
-          email: cleanEmail,
-          walletBalance: 0,
-          role: 'citizen'
-        };
-        memoryUsers.set(cleanEmail, user);
-      } else {
-        user = memoryUsers.get(cleanEmail);
-      }
+      user = {
+        _id: `mem_${Date.now()}`,
+        name: userName,
+        email: cleanEmail,
+        phone: userPhone,
+        password: hashedPassword,
+        walletBalance: 0,
+        role: 'citizen'
+      };
+      memoryUsers.set(cleanEmail, user);
     }
 
     const token = jwt.sign(
       { id: user._id, email: user.email, role: user.role },
-      process.env.JWT_SECRET || 'digital_solutions_jwt_secret',
+      JWT_SECRET,
       { expiresIn: '30d' }
     );
 
-    return res.status(200).json({
+    return res.status(201).json({
       success: true,
-      message: `स्वागत है, ${user.name}!`,
+      message: `🎉 पंजीकरण सफल! स्वागत है, ${user.name}!`,
       token,
       user: {
         id: user._id,
         name: user.name,
         email: user.email,
+        phone: user.phone,
         walletBalance: user.walletBalance,
         role: user.role
       }
     });
   } catch (error) {
-    console.error('Verify OTP error:', error);
-    return res.status(500).json({ success: false, message: 'सत्यापन में त्रुटि हुई।' });
+    console.error('Register complete error:', error);
+    return res.status(500).json({ success: false, message: 'पंजीकरण में त्रुटि हुई।' });
   }
 });
 
-export default router;
+// 3. CITIZEN LOGIN (Strict: Email + Password only, Non-registered users cannot login)
+router.post('/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
 
+    if (!email || !password) {
+      return res.status(400).json({ success: false, message: 'कृपया ईमेल और पासवर्ड दोनों दर्ज करें।' });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanPassword = password.trim();
+
+    let user = null;
+
+    if (getDbStatus()) {
+      user = await User.findOne({ email: cleanEmail });
+    } else {
+      user = memoryUsers.get(cleanEmail);
+    }
+
+    // Strict requirement: "bina registration ke login na ho"
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: '❌ यह ईमेल पोर्टल पर पंजीकृत नहीं है! कृपया पहले नया पंजीकरण (Registration) करें।'
+      });
+    }
+
+    // Check if user has a password set
+    if (!user.password) {
+      return res.status(400).json({
+        success: false,
+        message: 'आपने पासवर्ड सेट नहीं किया है। कृपया "पासवर्ड भूल गए?" पर क्लिक करके अपना पासवर्ड बनाएं।'
+      });
+    }
+
+    // Compare hashed password
+    const hashedAttempt = hashPassword(cleanPassword);
+    const isPasswordCorrect = (user.password === hashedAttempt) || (user.password === cleanPassword);
+
+    if (!isPasswordCorrect) {
+      return res.status(401).json({
+        success: false,
+        message: '❌ गलत पासवर्ड! कृपया सही पासवर्ड दर्ज करें अथवा "पासवर्ड भूल गए?" पर क्लिक करें।'
+      });
+    }
+
+    const token = jwt.sign(
+      { id: user._id, email: user.email, role: user.role },
+      JWT_SECRET,
+      { expiresIn: '30d' }
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: `🎉 स्वागत है, ${user.name}!`,
+      token,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        walletBalance: user.walletBalance,
+        role: user.role
+      }
+    });
+  } catch (error) {
+    console.error('Login error:', error);
+    return res.status(500).json({ success: false, message: 'लॉगिन के दौरान सर्वर त्रुटि हुई।' });
+  }
+});
+
+// 4. FORGOT PASSWORD: Send Reset OTP (Only for registered users)
+router.post('/forgot-password-otp', async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email || !isValidEmail(email)) {
+      return res.status(400).json({ success: false, message: 'कृपया मान्य ईमेल पता दर्ज करें।' });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+
+    // Verify user exists
+    let userExists = false;
+    if (getDbStatus()) {
+      const u = await User.findOne({ email: cleanEmail });
+      userExists = !!u;
+    } else {
+      userExists = memoryUsers.has(cleanEmail);
+    }
+
+    if (!userExists) {
+      return res.status(404).json({
+        success: false,
+        message: '❌ यह ईमेल पंजीकृत नहीं है। कृपया पहले नया पंजीकरण करें।'
+      });
+    }
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+
+    if (getDbStatus()) {
+      await Otp.deleteMany({ email: cleanEmail });
+      await Otp.create({
+        email: cleanEmail,
+        otp,
+        expiresAt: new Date(Date.now() + 10 * 60 * 1000)
+      });
+    } else {
+      memoryOtps.set(cleanEmail, { otp, expiresAt: Date.now() + 10 * 60 * 1000 });
+    }
+
+    const emailResult = await sendOtpEmail(cleanEmail, otp, 'reset');
+
+    if (!emailResult.success) {
+      return res.status(500).json({
+        success: false,
+        message: 'ईमेल भेजने में सर्वर समस्या आई। पुनः प्रयास करें।'
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `पासवर्ड रीसेट OTP ${cleanEmail} पर भेजा गया है।`
+    });
+  } catch (error) {
+    console.error('Forgot password OTP error:', error);
+    return res.status(500).json({ success: false, message: 'OTP भेजने में त्रुटि हुई।' });
+  }
+});
+
+// 5. RESET PASSWORD: Verify Reset OTP & Update Password
+router.post('/reset-password', async (req, res) => {
+  try {
+    const { email, otp, newPassword } = req.body;
+
+    if (!email || !otp || !newPassword) {
+      return res.status(400).json({ success: false, message: 'ईमेल, OTP और नया पासवर्ड आवश्यक हैं।' });
+    }
+
+    if (newPassword.trim().length < 6) {
+      return res.status(400).json({ success: false, message: 'नया पासवर्ड कम से कम 6 अक्षरों का होना चाहिए।' });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanOtp = otp.trim();
+    let isMatch = false;
+
+    if (getDbStatus()) {
+      const record = await Otp.findOne({ email: cleanEmail }).sort({ createdAt: -1 });
+      if (record && record.otp === cleanOtp && record.expiresAt > new Date()) {
+        isMatch = true;
+        await Otp.deleteOne({ _id: record._id });
+      }
+    } else {
+      const record = memoryOtps.get(cleanEmail);
+      if (record && record.otp === cleanOtp && record.expiresAt > Date.now()) {
+        isMatch = true;
+        memoryOtps.delete(cleanEmail);
+      }
+    }
+
+    if (!isMatch) {
+      return res.status(400).json({ success: false, message: 'अमान्य अथवा समाप्त OTP दर्ज किया गया है।' });
+    }
+
+    const hashedPassword = hashPassword(newPassword);
+
+    if (getDbStatus()) {
+      const user = await User.findOne({ email: cleanEmail });
+      if (!user) {
+        return res.status(404).json({ success: false, message: 'उपयोगकर्ता नहीं मिला।' });
+      }
+      user.password = hashedPassword;
+      await user.save();
+    } else {
+      const user = memoryUsers.get(cleanEmail);
+      if (user) {
+        user.password = hashedPassword;
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: '✅ पासवर्ड सफलतापूर्वक अपडेट हो गया! अब आप अपने नए पासवर्ड से लॉगिन कर सकते हैं।'
+    });
+  } catch (error) {
+    console.error('Reset password error:', error);
+    return res.status(500).json({ success: false, message: 'पासवर्ड रीसेट करने में त्रुटि हुई।' });
+  }
+});
+
+// Legacy backwards compatibility routes
+router.post('/send-otp', async (req, res) => {
+  return res.redirect(307, '/api/auth/register-send-otp');
+});
+
+router.post('/verify-otp', async (req, res) => {
+  return res.redirect(307, '/api/auth/register-complete');
+});
+
+export default router;

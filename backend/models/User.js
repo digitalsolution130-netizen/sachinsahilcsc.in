@@ -20,6 +20,10 @@ const userSchema = new mongoose.Schema(
       trim: true,
       default: ''
     },
+    password: {
+      type: String,
+      default: ''
+    },
     walletBalance: {
       type: Number,
       default: 0,

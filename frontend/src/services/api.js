@@ -49,24 +49,53 @@ async function request(endpoint, options = {}) {
   }
 }
 
-// 1. Auth APIs (Strict Email OTP)
-export const apiSendEmailOtp = async (email) => {
-  return await request('/auth/send-otp', {
+// 1. Auth APIs (Registration Email OTP + Password, Citizen Login, Forgot Password)
+export const apiCitizenLogin = async (email, password) => {
+  const data = await request('/auth/login', {
     method: 'POST',
-    body: JSON.stringify({ email })
-  });
-};
-
-export const apiVerifyEmailOtp = async (email, otp, name = '') => {
-  const data = await request('/auth/verify-otp', {
-    method: 'POST',
-    body: JSON.stringify({ email, otp, name })
+    body: JSON.stringify({ email, password })
   });
   if (data.token) {
     localStorage.setItem('portal_token_v2', data.token);
   }
   return data;
 };
+
+export const apiRegisterSendOtp = async (name, email, phone) => {
+  return await request('/auth/register-send-otp', {
+    method: 'POST',
+    body: JSON.stringify({ name, email, phone })
+  });
+};
+
+export const apiRegisterComplete = async (name, email, phone, otp, password) => {
+  const data = await request('/auth/register-complete', {
+    method: 'POST',
+    body: JSON.stringify({ name, email, phone, otp, password })
+  });
+  if (data.token) {
+    localStorage.setItem('portal_token_v2', data.token);
+  }
+  return data;
+};
+
+export const apiForgotPasswordOtp = async (email) => {
+  return await request('/auth/forgot-password-otp', {
+    method: 'POST',
+    body: JSON.stringify({ email })
+  });
+};
+
+export const apiResetPassword = async (email, otp, newPassword) => {
+  return await request('/auth/reset-password', {
+    method: 'POST',
+    body: JSON.stringify({ email, otp, newPassword })
+  });
+};
+
+// Legacy backwards compatibility
+export const apiSendEmailOtp = apiRegisterSendOtp;
+export const apiVerifyEmailOtp = apiRegisterComplete;
 
 // 2. Wallet APIs
 export const apiSubmitTopup = async (email, amount, utr) => {

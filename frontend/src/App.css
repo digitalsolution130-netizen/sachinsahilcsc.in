@@ -555,6 +555,12 @@ header.gov-header {
   border: 1px solid #bbf7d0;
 }
 
+.alert-info {
+  background: #e0f2fe;
+  color: #0369a1;
+  border: 1px solid #bae6fd;
+}
+
 /* Form Controls */
 .form-group {
   margin-bottom: 16px;
