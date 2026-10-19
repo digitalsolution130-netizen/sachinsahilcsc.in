@@ -1,36 +1,6 @@
 import nodemailer from 'nodemailer';
 
-export default async function handler(req, res) {
-  // CORS configuration
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-relay-secret');
-
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-
-  // Health check / GET test
-  if (req.method === 'GET') {
-    return res.status(200).json({ status: 'ONLINE', service: 'Digital Solutions Email Relay (Vercel)' });
-  }
-
-  if (req.method !== 'POST') {
-    return res.status(405).json({ success: false, error: 'Method Not Allowed' });
-  }
-
-  // Security token check
-  const relaySecret = req.headers['x-relay-secret'];
-  if (relaySecret !== 'digital_solutions_secret_email_relay_2026') {
-    return res.status(401).json({ success: false, error: 'Unauthorized relay request' });
-  }
-
-  const { to, otp, purpose } = req.body || {};
-
-  if (!to || !otp) {
-    return res.status(400).json({ success: false, error: 'Missing to or otp' });
-  }
-
+async function sendMailLogic({ to, otp, purpose }) {
   const cleanEmail = to.trim().toLowerCase();
   const emailUser = process.env.EMAIL_USER || 'digitalsolution130@gmail.com';
   const emailPass = (process.env.EMAIL_PASS || 'xhiidlfsadbdqrsp').replace(/\s+/g, '');
@@ -74,30 +44,70 @@ export default async function handler(req, res) {
     </div>
   `;
 
+  const transporter = nodemailer.createTransport({
+    host: 'smtp.gmail.com',
+    port: 465,
+    secure: true,
+    auth: {
+      user: emailUser,
+      pass: emailPass
+    },
+    connectionTimeout: 10000,
+    greetingTimeout: 10000
+  });
+
+  const info = await transporter.sendMail({
+    from: `"Digital Solutions Portal" <${emailUser}>`,
+    to: cleanEmail,
+    subject: subjectTitle,
+    html: htmlContent
+  });
+
+  return info;
+}
+
+export async function POST(request) {
   try {
-    const transporter = nodemailer.createTransport({
-      host: 'smtp.gmail.com',
-      port: 465,
-      secure: true,
-      auth: {
-        user: emailUser,
-        pass: emailPass
-      },
-      connectionTimeout: 10000,
-      greetingTimeout: 10000
+    const body = await request.json();
+    const { to, otp, purpose } = body || {};
+    if (!to || !otp) {
+      return new Response(JSON.stringify({ success: false, error: 'Missing to or otp' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+      });
+    }
+    const info = await sendMailLogic({ to, otp, purpose });
+    return new Response(JSON.stringify({ success: true, messageId: info.messageId }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
     });
-
-    const info = await transporter.sendMail({
-      from: `"Digital Solutions Portal" <${emailUser}>`,
-      to: cleanEmail,
-      subject: subjectTitle,
-      html: htmlContent
+  } catch (err) {
+    return new Response(JSON.stringify({ success: false, error: err.message }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
     });
+  }
+}
 
-    console.log(`[Vercel Relay] OTP delivered to ${cleanEmail}: ${info.messageId}`);
-    return res.status(200).json({ success: true, via: 'vercel_relay', messageId: info.messageId });
-  } catch (error) {
-    console.error('[Vercel Relay Error]:', error.message);
-    return res.status(500).json({ success: false, error: error.message });
+export default async function handler(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  if (req.method !== 'POST') {
+    return res.status(405).json({ success: false, error: 'Method Not Allowed' });
+  }
+  try {
+    const { to, otp, purpose } = req.body || {};
+    if (!to || !otp) {
+      return res.status(400).json({ success: false, error: 'Missing to or otp' });
+    }
+    const info = await sendMailLogic({ to, otp, purpose });
+    return res.status(200).json({ success: true, messageId: info.messageId });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
   }
 }
