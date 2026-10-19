@@ -66,29 +66,6 @@ async function sendMailLogic({ to, otp, purpose }) {
   return info;
 }
 
-export async function POST(request) {
-  try {
-    const body = await request.json();
-    const { to, otp, purpose } = body || {};
-    if (!to || !otp) {
-      return new Response(JSON.stringify({ success: false, error: 'Missing to or otp' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
-      });
-    }
-    const info = await sendMailLogic({ to, otp, purpose });
-    return new Response(JSON.stringify({ success: true, messageId: info.messageId }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
-    });
-  } catch (err) {
-    return new Response(JSON.stringify({ success: false, error: err.message }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
-    });
-  }
-}
-
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -97,9 +74,15 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
+
+  if (req.method === 'GET') {
+    return res.status(200).json({ status: 'ONLINE', service: 'Digital Solutions Email Relay (Vercel)' });
+  }
+
   if (req.method !== 'POST') {
     return res.status(405).json({ success: false, error: 'Method Not Allowed' });
   }
+
   try {
     const { to, otp, purpose } = req.body || {};
     if (!to || !otp) {
@@ -108,6 +91,7 @@ export default async function handler(req, res) {
     const info = await sendMailLogic({ to, otp, purpose });
     return res.status(200).json({ success: true, messageId: info.messageId });
   } catch (err) {
+    console.error('[Email Relay Error]:', err.message);
     return res.status(500).json({ success: false, error: err.message });
   }
 }
