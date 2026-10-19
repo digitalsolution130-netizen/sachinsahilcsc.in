@@ -45,9 +45,7 @@ router.post('/send-otp', async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: `OTP ${cleanEmail} पर भेजा गया है। कृपया अपना इनबॉक्स / स्पैम फोल्डर चेक करें।`,
-      devMode: emailResult.devMode,
-      devOtp: emailResult.devMode ? otp : undefined
+      message: `OTP ${cleanEmail} पर भेजा गया है। कृपया अपना इनबॉक्स / स्पैम फोल्डर चेक करें।`
     });
   } catch (error) {
     console.error('Send OTP error:', error);

@@ -29,13 +29,19 @@ export default function EnlargedQRModal({ isOpen, onClose, userEmail, userPhone,
     const identifier = userEmail || userPhone || 'citizen@portal.gov.in';
 
     try {
+      let apiSuccess = false;
       try {
-        await apiSubmitTopup(identifier, payAmt, cleanUtr);
+        const res = await apiSubmitTopup(identifier, payAmt, cleanUtr);
+        if (res && res.success) {
+          apiSuccess = true;
+        }
       } catch (e) {
-        console.warn('Backend topup call failed, saving to local');
+        console.warn('Backend topup call fallback to local:', e);
       }
+
       submitTopupRequest(identifier, payAmt, cleanUtr);
-      showToast(`✅ ₹${payAmt} रीचार्ज रिक्वेस्ट सबमिट हुई! UTR: ${cleanUtr}`, 'success');
+
+      showToast(`✅ ₹${payAmt} रीचार्ज रिक्वेस्ट दर्ज हो गई! UTR: ${cleanUtr} (एडमिन अप्रूवल के बाद वॉलेट में जुड़ेगा)`, 'success');
       setAmount('100');
       setUtr('');
       if (onTopupSubmitted) onTopupSubmitted();

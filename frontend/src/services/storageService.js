@@ -134,12 +134,15 @@ export function getWalletBalance(phone) {
   return wallets[phone] !== undefined ? wallets[phone] : 0;
 }
 
-export function updateWalletBalance(phone, newBalance) {
+export function updateWalletBalance(identifier, newBalance) {
+  if (!identifier) return 0;
   const wallets = safeGet(STORAGE_KEYS.WALLETS, {});
-  wallets[phone] = Math.max(0, newBalance);
+  wallets[identifier] = Math.max(0, newBalance);
   safeSet(STORAGE_KEYS.WALLETS, wallets);
-  return wallets[phone];
+  return wallets[identifier];
 }
+
+export const setWalletBalance = updateWalletBalance;
 
 // Top-ups
 export function submitTopupRequest(phone, amount, utr) {

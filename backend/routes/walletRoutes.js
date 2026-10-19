@@ -1,6 +1,7 @@
 import express from 'express';
 import { Topup } from '../models/Topup.js';
 import { User } from '../models/User.js';
+import { Application } from '../models/Application.js';
 import { getDbStatus } from '../config/db.js';
 
 const router = express.Router();
@@ -26,6 +27,17 @@ router.post('/topup', async (req, res) => {
     const requestId = `TOP-${Math.floor(1000 + Math.random() * 9000)}`;
 
     if (getDbStatus()) {
+      // Ensure user document exists or prepare it
+      let user = await User.findOne({ email: cleanEmail });
+      if (!user) {
+        user = await User.create({
+          name: cleanEmail.split('@')[0],
+          email: cleanEmail,
+          walletBalance: 0,
+          role: 'citizen'
+        });
+      }
+
       const newTopup = await Topup.create({
         requestId,
         userEmail: cleanEmail,
@@ -56,20 +68,68 @@ router.post('/topup', async (req, res) => {
 // 2. Get User Balance
 router.get('/balance/:email', async (req, res) => {
   try {
+    if (!req.params.email) {
+      return res.status(400).json({ success: false, message: 'Email required' });
+    }
     const cleanEmail = req.params.email.trim().toLowerCase();
 
     if (getDbStatus()) {
       const user = await User.findOne({ email: cleanEmail });
-      return res.status(200).json({ success: true, balance: user ? user.walletBalance : 0 });
+      return res.status(200).json({ 
+        success: true, 
+        balance: user ? Number(user.walletBalance || 0) : 0,
+        email: cleanEmail
+      });
     } else {
       const bal = memoryBalances.get(cleanEmail) || 0;
-      return res.status(200).json({ success: true, balance: bal });
+      return res.status(200).json({ success: true, balance: bal, email: cleanEmail });
     }
   } catch (error) {
     return res.status(500).json({ success: false, message: 'बैलेंस प्राप्त करने में समस्या।' });
   }
 });
 
+// 3. Get User Transaction History (Credits & Debits)
+router.get('/history/:email', async (req, res) => {
+  try {
+    const cleanEmail = req.params.email.trim().toLowerCase();
+
+    if (getDbStatus()) {
+      const topups = await Topup.find({ userEmail: cleanEmail }).sort({ createdAt: -1 });
+      const walletApps = await Application.find({ 
+        email: cleanEmail, 
+        paymentMethod: 'Wallet' 
+      }).sort({ createdAt: -1 });
+
+      const transactions = [
+        ...topups.map((t) => ({
+          id: t.requestId,
+          type: 'credit',
+          amount: t.amount,
+          title: `वॉलेट रीचार्ज (${t.status})`,
+          status: t.status,
+          utr: t.utr,
+          date: t.createdAt
+        })),
+        ...walletApps.map((a) => ({
+          id: a.ackId,
+          type: 'debit',
+          amount: a.fee,
+          title: `सेवा शुल्क भुगतान: ${a.serviceName}`,
+          status: 'Debited',
+          utr: a.utr,
+          date: a.createdAt
+        }))
+      ].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+      return res.status(200).json({ success: true, transactions });
+    } else {
+      return res.status(200).json({ success: true, transactions: [] });
+    }
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 export { memoryTopups, memoryBalances };
 export default router;
-

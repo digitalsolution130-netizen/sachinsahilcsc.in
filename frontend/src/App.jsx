@@ -18,12 +18,15 @@ import {
   initSeedData, 
   getActiveUser, 
   logoutUser, 
-  getWalletBalance 
+  getWalletBalance,
+  setWalletBalance as setLocalWalletBalance
 } from './services/storageService';
+import { apiGetBalance } from './services/api';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [walletBalance, setWalletBalance] = useState(0);
+  const [isRefreshingBal, setIsRefreshingBal] = useState(false);
   const [isAdminView, setIsAdminView] = useState(false);
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
   const [isQRModalOpen, setIsQRModalOpen] = useState(false);
@@ -43,28 +46,70 @@ export default function App() {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
+  // Fetch balance live from backend MongoDB Atlas
+  const fetchUserBalance = useCallback(async (email) => {
+    if (!email) return;
+    setIsRefreshingBal(true);
+    try {
+      const res = await apiGetBalance(email);
+      if (res && res.success && typeof res.balance === 'number') {
+        setWalletBalance(res.balance);
+        setLocalWalletBalance(email, res.balance);
+        return;
+      }
+    } catch (err) {
+      console.warn('Backend balance fetch failed, using fallback:', err.message);
+    } finally {
+      setIsRefreshingBal(false);
+    }
+
+    // Local fallback
+    const localBal = getWalletBalance(email);
+    setWalletBalance(localBal);
+  }, []);
+
   // Initialize and check saved citizen session
   useEffect(() => {
     initSeedData();
     const active = getActiveUser();
-    if (active && active.phone) {
+    if (active && (active.email || active.phone)) {
       setCurrentUser(active);
-      const bal = getWalletBalance(active.phone);
-      setWalletBalance(bal);
+      const userKey = active.email || active.phone;
+      fetchUserBalance(userKey);
     }
-  }, []);
+  }, [fetchUserBalance]);
+
+  // Periodic polling for wallet balance updates (e.g. when Admin approves a topup)
+  useEffect(() => {
+    if (!currentUser || !(currentUser.email || currentUser.phone)) return;
+
+    const userKey = currentUser.email || currentUser.phone;
+    const interval = setInterval(() => {
+      fetchUserBalance(userKey);
+    }, 8000);
+
+    const handleFocus = () => {
+      fetchUserBalance(userKey);
+    };
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [currentUser, fetchUserBalance]);
 
   const refreshBalance = useCallback(() => {
-    if (currentUser && currentUser.phone) {
-      const bal = getWalletBalance(currentUser.phone);
-      setWalletBalance(bal);
+    if (currentUser) {
+      const userKey = currentUser.email || currentUser.phone;
+      fetchUserBalance(userKey);
     }
-  }, [currentUser]);
+  }, [currentUser, fetchUserBalance]);
 
   const handleLoginSuccess = (user) => {
     setCurrentUser(user);
-    const bal = getWalletBalance(user.phone);
-    setWalletBalance(bal);
+    const userKey = user.email || user.phone;
+    fetchUserBalance(userKey);
     setIsAdminView(false);
   };
 
@@ -103,7 +148,7 @@ export default function App() {
       {/* Main Content Area */}
       <main className="main-content">
         {isAdminView ? (
-          /* 3. Admin Control Panel */
+          /* 3. Admin Control Panel (Multi-System Remote Access) */
           <AdminPanel 
             onExit={() => {
               setIsAdminView(false);
@@ -134,10 +179,12 @@ export default function App() {
             </div>
 
             <div className="container">
-              {/* Compact Citizen Wallet Dashboard */}
+              {/* Citizen Wallet Dashboard with Live Sync */}
               <WalletSection 
                 walletBalance={walletBalance}
                 onOpenQRModal={() => setIsQRModalOpen(true)}
+                onRefresh={refreshBalance}
+                isRefreshing={isRefreshingBal}
               />
 
               {/* Track Status Card */}
@@ -161,7 +208,7 @@ export default function App() {
         )}
       </main>
 
-      {/* Enlarged QR Modal */}
+      {/* Enlarged QR Modal (Wallet Topup) */}
       <EnlargedQRModal 
         isOpen={isQRModalOpen}
         onClose={() => setIsQRModalOpen(false)}
@@ -171,7 +218,7 @@ export default function App() {
         showToast={showToast}
       />
 
-      {/* Admin Login Modal */}
+      {/* Admin Login Modal (Private) */}
       <AdminLoginModal 
         isOpen={isAdminModalOpen}
         onClose={() => setIsAdminModalOpen(false)}
