@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, CheckCircle2, ShieldCheck, ArrowRight, Wallet, QrCode } from 'lucide-react';
+import { X, CheckCircle2, ShieldCheck, ArrowRight, Wallet, QrCode, Loader2 } from 'lucide-react';
 import PhonePeCard from './PhonePeCard';
 
 export default function FeePaymentModal({ 
@@ -14,14 +14,16 @@ export default function FeePaymentModal({
 }) {
   const [utr, setUtr] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isWalletPaying, setIsWalletPaying] = useState(false);
 
   if (!isOpen || !service) return null;
 
   const fee = Number(service.fee) || 0;
   const hasWalletBalance = walletBalance >= fee;
 
-  const handleQRSubmit = (e) => {
+  const handleQRSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmitting || isWalletPaying) return;
     const cleanUtr = utr.trim();
 
     if (!cleanUtr || cleanUtr.length < 8) {
@@ -31,22 +33,27 @@ export default function FeePaymentModal({
 
     setIsSubmitting(true);
     try {
-      onConfirmQR(cleanUtr);
+      await onConfirmQR(cleanUtr);
       setUtr('');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleWalletSubmit = () => {
+  const handleWalletSubmit = async () => {
+    if (isSubmitting || isWalletPaying) return; // Prevents accidental double click
     if (!hasWalletBalance) {
       showToast('वॉलेट में पर्याप्त बैलेंस नहीं है। कृपया QR से भुगतान करें।', 'error');
       return;
     }
+    setIsWalletPaying(true);
     setIsSubmitting(true);
     try {
-      onConfirmWallet();
+      await onConfirmWallet();
+    } catch (err) {
+      console.error('Wallet payment error:', err);
     } finally {
+      setIsWalletPaying(false);
       setIsSubmitting(false);
     }
   };
@@ -91,10 +98,24 @@ export default function FeePaymentModal({
                 type="button" 
                 className="btn-pay-wallet"
                 onClick={handleWalletSubmit}
-                disabled={isSubmitting}
+                disabled={isSubmitting || isWalletPaying}
+                style={{
+                  opacity: (isSubmitting || isWalletPaying) ? 0.7 : 1,
+                  cursor: (isSubmitting || isWalletPaying) ? 'not-allowed' : 'pointer',
+                  pointerEvents: (isSubmitting || isWalletPaying) ? 'none' : 'auto'
+                }}
               >
-                <span>वॉलेट से तुरंत भुगतान करें (₹{fee})</span>
-                <ArrowRight size={14} />
+                {isWalletPaying ? (
+                  <>
+                    <Loader2 size={16} className="spin-icon" />
+                    <span>वॉलेट से भुगतान हो रहा है...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>वॉलेट से तुरंत भुगतान करें (₹{fee})</span>
+                    <ArrowRight size={14} />
+                  </>
+                )}
               </button>
             </div>
           )}

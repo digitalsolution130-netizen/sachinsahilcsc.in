@@ -8,6 +8,8 @@ import { memoryBalances } from './walletRoutes.js';
 const router = express.Router();
 
 const memoryApps = new Map();
+// Anti-double-click concurrent wallet locks
+const activeWalletLocks = new Set();
 
 // 1. Submit Application
 router.post('/', upload.single('document'), async (req, res) => {
@@ -65,12 +67,48 @@ router.post('/', upload.single('document'), async (req, res) => {
 
     let newApp = null;
     let remainingBalance = 0;
+    const lockKey = cleanPaymentMethod === 'Wallet' ? `${cleanEmail}_${serviceName}_${cleanFee}` : null;
+
+    if (cleanPaymentMethod === 'Wallet') {
+      // 1. Debounce parallel double-click requests
+      if (activeWalletLocks.has(lockKey)) {
+        return res.status(429).json({
+          success: false,
+          message: 'कृपया प्रतीक्षा करें, आपका पिछला भुगतान प्रोसेस हो रहा है।'
+        });
+      }
+      activeWalletLocks.add(lockKey);
+      setTimeout(() => activeWalletLocks.delete(lockKey), 5000);
+
+      // 2. Database level idempotency: check if identical wallet application was submitted in the last 5 seconds
+      if (getDbStatus()) {
+        const recentApp = await Application.findOne({
+          email: cleanEmail,
+          serviceName,
+          paymentMethod: 'Wallet',
+          createdAt: { $gte: new Date(Date.now() - 5000) }
+        });
+
+        if (recentApp) {
+          activeWalletLocks.delete(lockKey);
+          console.warn(`⚠️ [Double-Click Prevented] Blocked duplicate wallet deduction for ${cleanEmail} (${serviceName})`);
+          const user = await User.findOne({ email: cleanEmail });
+          return res.status(200).json({
+            success: true,
+            message: 'आवेदन सफलतापूर्वक सबमिट हो चुका है!',
+            application: recentApp,
+            remainingBalance: user ? user.walletBalance : 0
+          });
+        }
+      }
+    }
 
     if (getDbStatus()) {
       // If paying via wallet, check & deduct balance
       if (cleanPaymentMethod === 'Wallet') {
         const user = await User.findOne({ email: cleanEmail });
         if (!user || user.walletBalance < cleanFee) {
+          if (lockKey) activeWalletLocks.delete(lockKey);
           return res.status(400).json({ success: false, message: 'वॉलेट में पर्याप्त बैलेंस नहीं है।' });
         }
         user.walletBalance = Math.max(0, user.walletBalance - cleanFee);
@@ -95,11 +133,13 @@ router.post('/', upload.single('document'), async (req, res) => {
         remarks: remarks ? remarks.trim() : 'None',
         status: 'Submitted / Processing'
       });
+      if (lockKey) activeWalletLocks.delete(lockKey);
     } else {
       // In-memory fallback
       if (cleanPaymentMethod === 'Wallet') {
         const currentBal = memoryBalances.get(cleanEmail) || 0;
         if (currentBal < cleanFee) {
+          if (lockKey) activeWalletLocks.delete(lockKey);
           return res.status(400).json({ success: false, message: 'वॉलेट में पर्याप्त बैलेंस नहीं है।' });
         }
         remainingBalance = currentBal - cleanFee;
@@ -134,6 +174,7 @@ router.post('/', upload.single('document'), async (req, res) => {
       remainingBalance
     });
   } catch (error) {
+    if (lockKey) activeWalletLocks.delete(lockKey);
     console.error('Application submit error:', error);
     return res.status(500).json({ success: false, message: 'आवेदन सबमिट करने में सर्वर त्रुटि हुई।' });
   }

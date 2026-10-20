@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { FileEdit, Camera, FolderOpen, Trash2, ArrowRight, ShieldCheck } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { SERVICES_LIST } from '../data/servicesData';
@@ -26,6 +26,9 @@ export default function ApplicationForm({
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [isFeeModalOpen, setIsFeeModalOpen] = useState(false);
   const [submittedApp, setSubmittedApp] = useState(null);
+
+  // Lock to prevent accidental double-click duplicate payments
+  const isSubmittingPaymentRef = useRef(false);
 
   // Pre-fill user data
   useEffect(() => {
@@ -138,96 +141,117 @@ export default function ApplicationForm({
 
   // Called when user completes QR Payment with UTR
   const handleConfirmQRPayment = async (utrNumber) => {
-    const payload = {
-      applicantName: applicantName.trim(),
-      email: email.trim() || currentUser?.email || 'citizen@portal.gov.in',
-      phone: phone.trim(),
-      serviceId: currentServiceObj.id,
-      serviceName: currentServiceObj.name,
-      fee: currentFee,
-      paymentMethod: 'UPI QR',
-      utr: utrNumber,
-      remarks: remarks.trim(),
-      document: attachedDocs[0] || null,
-      documents: attachedDocs
-    };
+    if (isSubmittingPaymentRef.current) return;
+    isSubmittingPaymentRef.current = true;
 
-    let appResult = null;
     try {
-      const apiRes = await apiSubmitApplication(payload);
-      if (apiRes.success) {
-        appResult = apiRes.application;
+      const payload = {
+        applicantName: applicantName.trim(),
+        email: email.trim() || currentUser?.email || 'citizen@portal.gov.in',
+        phone: phone.trim(),
+        serviceId: currentServiceObj.id,
+        serviceName: currentServiceObj.name,
+        fee: currentFee,
+        paymentMethod: 'UPI QR',
+        utr: utrNumber,
+        remarks: remarks.trim(),
+        document: attachedDocs[0] || null,
+        documents: attachedDocs
+      };
+
+      let appResult = null;
+      try {
+        const apiRes = await apiSubmitApplication(payload);
+        if (apiRes.success) {
+          appResult = apiRes.application;
+        }
+      } catch (e) {
+        console.warn('Backend call failed, using local fallback:', e);
       }
-    } catch (e) {
-      console.warn('Backend call failed, using local fallback:', e);
+
+      if (!appResult) {
+        const localRes = submitApplication(payload);
+        appResult = localRes.newApp;
+      }
+
+      try {
+        confetti({
+          particleCount: 80,
+          spread: 70,
+          origin: { y: 0.6 }
+        });
+      } catch (e) {}
+
+      setIsFeeModalOpen(false);
+      setSubmittedApp(appResult);
+      showToast(`🎉 आवेदन सबमिट हुआ! Ack ID: ${appResult.ackId}`, 'success');
+      if (onApplicationCreated) onApplicationCreated(walletBalance);
+    } finally {
+      setTimeout(() => {
+        isSubmittingPaymentRef.current = false;
+      }, 2000);
     }
-
-    if (!appResult) {
-      const localRes = submitApplication(payload);
-      appResult = localRes.newApp;
-    }
-
-    try {
-      confetti({
-        particleCount: 80,
-        spread: 70,
-        origin: { y: 0.6 }
-      });
-    } catch (e) {}
-
-    setIsFeeModalOpen(false);
-    setSubmittedApp(appResult);
-    showToast(`🎉 आवेदन सबमिट हुआ! Ack ID: ${appResult.ackId}`, 'success');
-    if (onApplicationCreated) onApplicationCreated(walletBalance);
   };
 
   // Called when user chooses to pay from Wallet balance
   const handleConfirmWalletPayment = async () => {
-    const payload = {
-      applicantName: applicantName.trim(),
-      email: email.trim() || currentUser?.email || 'citizen@portal.gov.in',
-      phone: phone.trim(),
-      serviceId: currentServiceObj.id,
-      serviceName: currentServiceObj.name,
-      fee: currentFee,
-      paymentMethod: 'Wallet',
-      utr: 'WALLET-DEBIT',
-      remarks: remarks.trim(),
-      document: attachedDocs[0] || null,
-      documents: attachedDocs
-    };
-
-    let appResult = null;
-    let newBal = walletBalance - currentFee;
+    if (isSubmittingPaymentRef.current) {
+      console.warn('Wallet payment already in progress, ignoring duplicate call');
+      return;
+    }
+    isSubmittingPaymentRef.current = true;
 
     try {
-      const apiRes = await apiSubmitApplication(payload);
-      if (apiRes.success) {
-        appResult = apiRes.application;
-        newBal = apiRes.remainingBalance;
+      const payload = {
+        applicantName: applicantName.trim(),
+        email: email.trim() || currentUser?.email || 'citizen@portal.gov.in',
+        phone: phone.trim(),
+        serviceId: currentServiceObj.id,
+        serviceName: currentServiceObj.name,
+        fee: currentFee,
+        paymentMethod: 'Wallet',
+        utr: 'WALLET-DEBIT',
+        remarks: remarks.trim(),
+        document: attachedDocs[0] || null,
+        documents: attachedDocs
+      };
+
+      let appResult = null;
+      let newBal = walletBalance - currentFee;
+
+      try {
+        const apiRes = await apiSubmitApplication(payload);
+        if (apiRes.success) {
+          appResult = apiRes.application;
+          newBal = apiRes.remainingBalance;
+        }
+      } catch (e) {
+        console.warn('Backend call failed, using local fallback:', e);
       }
-    } catch (e) {
-      console.warn('Backend call failed, using local fallback:', e);
+
+      if (!appResult) {
+        const localRes = submitApplication(payload);
+        appResult = localRes.newApp;
+        newBal = localRes.remainingBalance;
+      }
+
+      try {
+        confetti({
+          particleCount: 80,
+          spread: 70,
+          origin: { y: 0.6 }
+        });
+      } catch (e) {}
+
+      setIsFeeModalOpen(false);
+      setSubmittedApp(appResult);
+      showToast(`🎉 वॉलेट से ₹${currentFee} भुगतान सफल! Ack ID: ${appResult.ackId}`, 'success');
+      if (onApplicationCreated) onApplicationCreated(newBal);
+    } finally {
+      setTimeout(() => {
+        isSubmittingPaymentRef.current = false;
+      }, 2000);
     }
-
-    if (!appResult) {
-      const localRes = submitApplication(payload);
-      appResult = localRes.newApp;
-      newBal = localRes.remainingBalance;
-    }
-
-    try {
-      confetti({
-        particleCount: 80,
-        spread: 70,
-        origin: { y: 0.6 }
-      });
-    } catch (e) {}
-
-    setIsFeeModalOpen(false);
-    setSubmittedApp(appResult);
-    showToast(`🎉 वॉलेट से ₹${currentFee} भुगतान सफल! Ack ID: ${appResult.ackId}`, 'success');
-    if (onApplicationCreated) onApplicationCreated(newBal);
   };
 
   const handleResetForm = () => {
