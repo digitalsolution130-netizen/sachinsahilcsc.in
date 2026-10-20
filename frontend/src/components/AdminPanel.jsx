@@ -486,7 +486,23 @@ export default function AdminPanel({ onExit, showToast }) {
                           )}
                         </td>
                         <td>
-                          {app.document && (app.document.url || app.document.dataUrl) ? (
+                          {app.documents && app.documents.length > 0 ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                              {app.documents.map((d, dIdx) => (
+                                <button 
+                                  key={dIdx}
+                                  type="button" 
+                                  className="btn-view-doc"
+                                  onClick={() => setSelectedDocPreview(d)}
+                                  title={d.name}
+                                  style={{ padding: '3px 6px', fontSize: '0.74rem' }}
+                                >
+                                  <Eye size={11} />
+                                  <span>Doc {dIdx + 1}: {((d.name || 'File')).slice(0, 9)}...</span>
+                                </button>
+                              ))}
+                            </div>
+                          ) : app.document && (app.document.url || app.document.dataUrl) ? (
                             <button 
                               type="button" 
                               className="btn-view-doc"

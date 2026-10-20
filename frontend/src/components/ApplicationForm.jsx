@@ -21,7 +21,7 @@ export default function ApplicationForm({
   const [phone, setPhone] = useState('');
   const [serviceId, setServiceId] = useState('');
   const [remarks, setRemarks] = useState('');
-  const [attachedDoc, setAttachedDoc] = useState(null);
+  const [attachedDocs, setAttachedDocs] = useState([]);
   
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [isFeeModalOpen, setIsFeeModalOpen] = useState(false);
@@ -46,36 +46,77 @@ export default function ApplicationForm({
   const currentServiceObj = SERVICES_LIST.find((s) => s.id === serviceId) || null;
   const currentFee = currentServiceObj ? currentServiceObj.fee : 0;
 
+  // Multiple Document Upload Handler (Supports PDF, JPEG, JPG, PNG)
   const handleFileUpload = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
 
-    if (file.size > 5 * 1024 * 1024) {
-      showToast('फ़ाइल का साइज़ 5MB से कम होना चाहिए।', 'error');
+    const allowedExtensions = ['pdf', 'jpeg', 'jpg', 'png', 'webp'];
+    const validFiles = [];
+
+    for (const file of files) {
+      const ext = (file.name.split('.').pop() || '').toLowerCase();
+      const isPdfOrImage = file.type.includes('pdf') || file.type.startsWith('image/') || allowedExtensions.includes(ext);
+
+      if (!isPdfOrImage) {
+        showToast(`❌ '${file.name}': केवल PDF, JPEG, JPG, और PNG फाइलें ही मान्य हैं।`, 'error');
+        continue;
+      }
+
+      if (file.size > 10 * 1024 * 1024) {
+        showToast(`❌ '${file.name}': फ़ाइल 10MB से छोटी होनी चाहिए।`, 'error');
+        continue;
+      }
+      validFiles.push(file);
+    }
+
+    if (validFiles.length === 0) {
+      e.target.value = '';
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      setAttachedDoc({
-        name: file.name,
-        size: `${Math.round(file.size / 1024)} KB`,
-        dataUrl: reader.result,
-        type: file.type
-      });
-      showToast(`📎 '${file.name}' सफलतापूर्वक अपलोड किया गया!`, 'success');
-    };
-    reader.readAsDataURL(file);
+    let loadedCount = 0;
+    const newItems = [];
+
+    validFiles.forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        newItems.push({
+          id: `doc_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+          name: file.name,
+          size: `${Math.round(file.size / 1024)} KB`,
+          dataUrl: reader.result,
+          type: file.type || (file.name.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg')
+        });
+        loadedCount++;
+        if (loadedCount === validFiles.length) {
+          setAttachedDocs((prev) => [...prev, ...newItems]);
+          showToast(`📎 ${newItems.length} दस्तावेज़ सफलतापूर्वक जोड़े गए!`, 'success');
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+
     e.target.value = '';
   };
 
   const handleCameraCapture = (capturedDoc) => {
-    setAttachedDoc(capturedDoc);
+    const docItem = {
+      ...capturedDoc,
+      id: `doc_cam_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`
+    };
+    setAttachedDocs((prev) => [...prev, docItem]);
+    showToast('📷 लाइव फोटो दस्तावेज़ सूची में जोड़ी गई!', 'success');
   };
 
-  const handleRemoveDoc = () => {
-    setAttachedDoc(null);
+  const handleRemoveDoc = (indexToRemove) => {
+    setAttachedDocs((prev) => prev.filter((_, idx) => idx !== indexToRemove));
     showToast('दस्तावेज़ हटा दिया गया।', 'info');
+  };
+
+  const handleClearAllDocs = () => {
+    setAttachedDocs([]);
+    showToast('सभी दस्तावेज़ हटा दिए गए।', 'info');
   };
 
   // Called when user clicks "Proceed to Pay Fees"
@@ -107,7 +148,8 @@ export default function ApplicationForm({
       paymentMethod: 'UPI QR',
       utr: utrNumber,
       remarks: remarks.trim(),
-      document: attachedDoc
+      document: attachedDocs[0] || null,
+      documents: attachedDocs
     };
 
     let appResult = null;
@@ -151,7 +193,8 @@ export default function ApplicationForm({
       paymentMethod: 'Wallet',
       utr: 'WALLET-DEBIT',
       remarks: remarks.trim(),
-      document: attachedDoc
+      document: attachedDocs[0] || null,
+      documents: attachedDocs
     };
 
     let appResult = null;
@@ -190,7 +233,7 @@ export default function ApplicationForm({
   const handleResetForm = () => {
     setSubmittedApp(null);
     setRemarks('');
-    setAttachedDoc(null);
+    setAttachedDocs([]);
   };
 
   return (
@@ -298,9 +341,19 @@ export default function ApplicationForm({
             </div>
           )}
 
-          {/* Document Upload Box */}
+          {/* Document Upload Box - Multi-Document & All Format Support */}
           <div className="form-group">
-            <label>दस्तावेज़ / फोटो अपलोड करें (Camera या File)</label>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+              <label style={{ margin: 0 }}>
+                दस्तावेज़ / फोटो अपलोड करें (PDF, JPEG, JPG, PNG - Multiple Allowed)
+              </label>
+              {attachedDocs.length > 0 && (
+                <span style={{ fontSize: '0.8rem', background: '#e0f2fe', color: '#0369a1', padding: '2px 8px', borderRadius: '12px', fontWeight: '700' }}>
+                  {attachedDocs.length} फ़ाइलें जुड़ी हुई हैं
+                </span>
+              )}
+            </div>
+
             <div className="upload-options">
               <button 
                 type="button" 
@@ -308,48 +361,79 @@ export default function ApplicationForm({
                 onClick={() => setIsCameraOpen(true)}
               >
                 <Camera size={16} />
-                <span>📷 Live Camera से फोटो लें</span>
+                <span>📷 Live Camera से फोटो जोड़ें</span>
               </button>
 
               <label className="upload-btn" htmlFor="filePickerInput">
                 <FolderOpen size={16} />
-                <span>📁 File / PDF चुनें</span>
+                <span>📁 File / PDF जोड़ें (एक साथ कई फ़ाइलें)</span>
                 <input 
                   type="file" 
                   id="filePickerInput" 
-                  accept="image/*,application/pdf"
+                  multiple
+                  accept="application/pdf,image/jpeg,image/jpg,image/png,image/webp,.pdf,.jpeg,.jpg,.png"
                   style={{ display: 'none' }}
                   onChange={handleFileUpload}
                 />
               </label>
             </div>
 
-            {/* Document Preview Card */}
-            {attachedDoc && (
-              <div className="doc-preview-card">
-                <div className="doc-preview-left">
-                  {attachedDoc.type && attachedDoc.type.includes('pdf') ? (
-                    <div className="pdf-thumb-box">📄 PDF</div>
-                  ) : (
-                    <img 
-                      src={attachedDoc.dataUrl} 
-                      alt="Doc Preview" 
-                      className="doc-thumb" 
-                    />
+            <small style={{ display: 'block', marginTop: '6px', fontSize: '0.78rem', color: '#64748b' }}>
+              💡 आप एक साथ कई दस्तावेज़ (PDF, JPEG, JPG, PNG) या कैमरा फोटो संलग्न कर सकते हैं।
+            </small>
+
+            {/* Multiple Documents Preview List */}
+            {attachedDocs.length > 0 && (
+              <div style={{ marginTop: '12px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <span style={{ fontSize: '0.85rem', fontWeight: '700', color: '#0a2540' }}>
+                    📎 संलग्न दस्तावेज़ सूची ({attachedDocs.length}):
+                  </span>
+                  {attachedDocs.length > 1 && (
+                    <button 
+                      type="button" 
+                      onClick={handleClearAllDocs}
+                      style={{ background: 'none', border: 'none', color: '#dc2626', fontSize: '0.78rem', cursor: 'pointer', fontWeight: '600' }}
+                    >
+                      सभी हटाएं (Clear All)
+                    </button>
                   )}
-                  <div className="doc-info">
-                    <strong>{attachedDoc.name}</strong>
-                    <span>{attachedDoc.size} • Ready to submit</span>
-                  </div>
                 </div>
-                <button 
-                  type="button" 
-                  className="btn-remove-doc"
-                  onClick={handleRemoveDoc}
-                >
-                  <Trash2 size={15} />
-                  <span>Remove</span>
-                </button>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {attachedDocs.map((doc, idx) => (
+                    <div key={doc.id || idx} className="doc-preview-card" style={{ marginTop: 0 }}>
+                      <div className="doc-preview-left">
+                        {doc.type && doc.type.includes('pdf') ? (
+                          <div className="pdf-thumb-box">📄 PDF</div>
+                        ) : (
+                          <img 
+                            src={doc.dataUrl} 
+                            alt="Doc Preview" 
+                            className="doc-thumb" 
+                          />
+                        )}
+                        <div className="doc-info">
+                          <strong title={doc.name}>
+                            #{idx + 1}. {doc.name}
+                          </strong>
+                          <span>
+                            {doc.size} • {doc.type && doc.type.includes('pdf') ? 'PDF Document' : (doc.type ? doc.type.split('/')[1]?.toUpperCase() : 'Image')} • Ready
+                          </span>
+                        </div>
+                      </div>
+                      <button 
+                        type="button" 
+                        className="btn-remove-doc"
+                        onClick={() => handleRemoveDoc(idx)}
+                        title="हटाएं (Remove)"
+                      >
+                        <Trash2 size={15} />
+                        <span>Remove</span>
+                      </button>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>

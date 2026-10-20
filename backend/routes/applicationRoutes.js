@@ -21,6 +21,7 @@ router.post('/', upload.single('document'), async (req, res) => {
       paymentMethod,
       utr,
       remarks,
+      documents,
       documentDataUrl,
       documentName
     } = req.body;
@@ -34,20 +35,31 @@ router.post('/', upload.single('document'), async (req, res) => {
     const cleanPaymentMethod = paymentMethod === 'Wallet' ? 'Wallet' : 'UPI QR';
     const cleanUtr = utr ? utr.trim() : (cleanPaymentMethod === 'Wallet' ? 'WALLET-DEBIT' : 'N/A');
 
-    // Handle document upload: either from req.file or from documentDataUrl (e.g. Webcam)
-    let docObj = null;
+    // Handle document upload: multiple documents, single file, or documentDataUrl
+    let docsArray = [];
 
-    if (req.file) {
-      docObj = await uploadToCloudinary(req.file);
+    if (Array.isArray(documents) && documents.length > 0) {
+      docsArray = documents.map((doc, idx) => ({
+        url: doc.dataUrl || doc.url,
+        publicId: doc.publicId || `doc_${Date.now()}_${idx}`,
+        name: doc.name || `document_${idx + 1}`,
+        size: doc.size || 'N/A',
+        type: doc.type || (doc.name?.endsWith('.pdf') ? 'application/pdf' : 'image/jpeg')
+      }));
+    } else if (req.file) {
+      const uploadedFile = await uploadToCloudinary(req.file);
+      if (uploadedFile) docsArray = [uploadedFile];
     } else if (documentDataUrl) {
-      docObj = {
+      docsArray = [{
         url: documentDataUrl,
         publicId: `webcam_${Date.now()}`,
         name: documentName || 'camera_photo.jpg',
         size: `${Math.round((documentDataUrl.length * 3) / 4 / 1024)} KB`,
         type: 'image/jpeg'
-      };
+      }];
     }
+
+    const primaryDoc = docsArray.length > 0 ? docsArray[0] : null;
 
     const ackId = `DSK-${Math.floor(100000 + Math.random() * 900000)}`;
 
@@ -78,7 +90,8 @@ router.post('/', upload.single('document'), async (req, res) => {
         fee: cleanFee,
         paymentMethod: cleanPaymentMethod,
         utr: cleanUtr,
-        document: docObj,
+        document: primaryDoc,
+        documents: docsArray,
         remarks: remarks ? remarks.trim() : 'None',
         status: 'Submitted / Processing'
       });
@@ -105,7 +118,8 @@ router.post('/', upload.single('document'), async (req, res) => {
         fee: cleanFee,
         paymentMethod: cleanPaymentMethod,
         utr: cleanUtr,
-        document: docObj,
+        document: primaryDoc,
+        documents: docsArray,
         remarks: remarks ? remarks.trim() : 'None',
         status: 'Submitted / Processing',
         createdAt: new Date()

@@ -202,6 +202,9 @@ export function submitApplication(appData) {
   const paymentMethod = appData.paymentMethod || 'UPI QR';
   const utr = appData.utr ? appData.utr.trim() : (paymentMethod === 'Wallet' ? 'WALLET-DEBIT' : 'N/A');
 
+  const docs = appData.documents || (appData.document ? [appData.document] : []);
+  const primaryDoc = appData.document || (docs[0] || null);
+
   const newApp = {
     ackId,
     applicantName: appData.applicantName,
@@ -213,7 +216,8 @@ export function submitApplication(appData) {
     date: new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
     status: 'Submitted / Processing',
     remarks: appData.remarks || 'None',
-    document: appData.document || null
+    document: primaryDoc,
+    documents: docs
   };
 
   apps[ackId] = newApp;

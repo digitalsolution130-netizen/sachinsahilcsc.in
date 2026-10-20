@@ -42,6 +42,15 @@ const applicationSchema = new mongoose.Schema(
       type: String,
       default: 'N/A'
     },
+    documents: [
+      {
+        url: String,
+        publicId: String,
+        name: String,
+        size: String,
+        type: { type: String }
+      }
+    ],
     document: {
       url: String,
       publicId: String,

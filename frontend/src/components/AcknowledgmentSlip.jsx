@@ -101,9 +101,17 @@ export default function AcknowledgmentSlip({ application, onReset, showToast }) 
               </tr>
             )}
             <tr>
-              <td className="receipt-label">Attached Document:</td>
+              <td className="receipt-label">Attached Document(s):</td>
               <td className="receipt-val">
-                {application.document ? (
+                {application.documents && application.documents.length > 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    {application.documents.map((d, i) => (
+                      <span key={i} className="doc-attached-pill">
+                        📎 #{i + 1} {d.name} ({d.size})
+                      </span>
+                    ))}
+                  </div>
+                ) : application.document ? (
                   <span className="doc-attached-pill">
                     📎 {application.document.name} ({application.document.size})
                   </span>

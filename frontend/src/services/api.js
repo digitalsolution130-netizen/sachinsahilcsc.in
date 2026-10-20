@@ -130,8 +130,9 @@ export const apiSubmitApplication = async (appData) => {
       paymentMethod: appData.paymentMethod,
       utr: appData.utr,
       remarks: appData.remarks,
-      documentDataUrl: appData.document?.dataUrl || null,
-      documentName: appData.document?.name || null
+      documents: appData.documents || (appData.document ? [appData.document] : []),
+      documentDataUrl: appData.document?.dataUrl || (appData.documents?.[0]?.dataUrl) || null,
+      documentName: appData.document?.name || (appData.documents?.[0]?.name) || null
     })
   });
 };
