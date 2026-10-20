@@ -226,6 +226,21 @@ export const SERVICES_LIST = [
       "कंपनी जॉइनिंग स्लिप / मेडिकल उपचार पर्ची (Joining Slip / Medical Papers)"
     ]
   },
+  {
+    id: "residence-certificate",
+    name: "Residence Certificate",
+    nameHi: "मूल निवास / रिहायशी प्रमाण पत्र",
+    fee: 600,
+    icon: "📜",
+    desc: "Residence / Domicile Certificate application with official government verification",
+    requiredDocs: [
+      "आधार कार्ड (Aadhaar Card)",
+      "वोटर कार्ड (Voter Card)",
+      "राशन कार्ड (Ration Card)",
+      "परिवार पहचान पत्र (Family ID)",
+      "परिवार में से किसी का भी 15 वर्ष पुराना राशन कार्ड या वोटर कार्ड (15 Years Old Proof)"
+    ]
+  },
 
   // 2. Additional Essential Citizen & E-Governance Services
   {
