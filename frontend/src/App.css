@@ -948,6 +948,88 @@ header.gov-header {
   font-weight: 900;
 }
 
+/* Required Documents Box in Application Form */
+.required-docs-card {
+  background: #f0fdf4;
+  border: 1.5px solid #86efac;
+  border-left: 5px solid #16a34a;
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  box-shadow: 0 2px 6px rgba(22, 163, 74, 0.08);
+  animation: fadeInDocs 0.25s ease-in-out;
+}
+
+@keyframes fadeInDocs {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.required-docs-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  color: #14532d;
+  font-size: 0.94rem;
+  font-weight: 700;
+}
+
+.required-docs-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.required-doc-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  background: #ffffff;
+  border: 1px solid #bbf7d0;
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 0.84rem;
+  color: #166534;
+  font-weight: 600;
+  line-height: 1.35;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+.required-doc-check {
+  color: #16a34a;
+  font-weight: 900;
+  font-size: 1rem;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.required-docs-hint {
+  margin-top: 10px;
+  font-size: 0.78rem;
+  color: #15803d;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 500;
+}
+
+.no-service-docs-hint {
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 6px;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  font-size: 0.82rem;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .btn-large-submit {
   padding: 14px 20px;
   font-size: 1.02rem;

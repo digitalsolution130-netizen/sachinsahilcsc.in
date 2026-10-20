@@ -365,6 +365,33 @@ export default function ApplicationForm({
             </div>
           )}
 
+          {/* Required Documents Checklist for Selected Service */}
+          {currentServiceObj && currentServiceObj.requiredDocs && currentServiceObj.requiredDocs.length > 0 ? (
+            <div className="required-docs-card">
+              <div className="required-docs-header">
+                <span style={{ fontSize: '1.2rem' }}>📋</span>
+                <span>
+                  <strong>{currentServiceObj.name}</strong> {currentServiceObj.nameHi ? `(${currentServiceObj.nameHi})` : ''} हेतु आवश्यक दस्तावेज़ (Required Documents):
+                </span>
+              </div>
+              <ul className="required-docs-grid">
+                {currentServiceObj.requiredDocs.map((docText, dIdx) => (
+                  <li key={dIdx} className="required-doc-item">
+                    <span className="required-doc-check">✓</span>
+                    <span>{docText}</span>
+                  </li>
+                ))}
+              </ul>
+              <div className="required-docs-hint">
+                <span>💡 आवेदन को शीघ्र प्रोसेस कराने हेतु उपरोक्त आवश्यक दस्तावेज़ (PDF, JPG, PNG) नीचे संलग्न करें।</span>
+              </div>
+            </div>
+          ) : (
+            <div className="no-service-docs-hint">
+              <span>📋 <em>कृपया ऊपर से एक सेवा चुनें — सेवा चुनते ही उसके सभी आवश्यक दस्तावेज़ों की सूची यहाँ प्रदर्शित होगी।</em></span>
+            </div>
+          )}
+
           {/* Document Upload Box - Multi-Document & All Format Support */}
           <div className="form-group">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
