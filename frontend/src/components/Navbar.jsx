@@ -18,7 +18,7 @@ export default function Navbar({ currentUser, onGoHome, onOpenAdminLogin, onLogo
             <div className="pill-line">
               <Phone size={13} className="pill-icon" />
               <span>हेल्पलाइन: </span>
-              <a href="tel:01307966590">0130-7966590</a>
+              <a href="tel:7419353376">7419353376</a>
             </div>
             <div className="pill-line">
               <Mail size={13} className="pill-icon" />

@@ -283,7 +283,7 @@ export default function AuthSection({ onLoginSuccess, onOpenAdminLogin, showToas
           </p>
         </div>
         <div className="official-emblem-badge">
-          🇮🇳 Digital India | Atmanirbhar Bharat
+          🇮🇳 Digital India | Citizen Services Portal
         </div>
       </div>
 

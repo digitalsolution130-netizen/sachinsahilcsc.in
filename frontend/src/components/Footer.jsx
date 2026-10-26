@@ -9,7 +9,7 @@ export default function Footer() {
           © 2026 <strong>Digital Solutions Portal</strong> | Common Service Centre (CSC) & Citizen E-Governance Services
         </p>
         <p className="footer-contacts">
-          <span>📞 Helpline: <a href="tel:01307966590">0130-7966590</a></span>
+          <span>📞 Helpline: <a href="tel:7419353376">7419353376</a></span>
           <span className="footer-sep">•</span>
           <span>✉️ Email: <a href="mailto:digitalsolution130@gmail.com">digitalsolution130@gmail.com</a></span>
           <span className="footer-sep">•</span>

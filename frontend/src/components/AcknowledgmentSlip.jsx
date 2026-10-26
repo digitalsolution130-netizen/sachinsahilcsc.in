@@ -55,7 +55,7 @@ export default function AcknowledgmentSlip({ application, onReset, showToast }) 
             <div>
               <h3>DIGITAL SOLUTIONS PORTAL</h3>
               <p className="receipt-sub">Official E-Governance Citizen Service Acknowledgment Slip</p>
-              <p className="receipt-contacts">Helpline: 0130-7966590 | Email: digitalsolution130@gmail.com</p>
+              <p className="receipt-contacts">Helpline: 7419353376 | Email: digitalsolution130@gmail.com</p>
             </div>
           </div>
           <div className="receipt-header-right">

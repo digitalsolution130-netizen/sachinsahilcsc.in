@@ -5,7 +5,7 @@ export default function TopStrip() {
   return (
     <div className="gov-top-strip">
       <div className="strip-left">
-        <span>🇮🇳 भारत सरकार | डिजिटल जन सेवा पोर्टल (CSC E-Governance Services)</span>
+        <span>🇮🇳 डिजिटल जन सेवा पोर्टल (CSC E-Governance Services)</span>
       </div>
       <div className="strip-right">
         <a href="mailto:digitalsolution130@gmail.com" className="strip-item">
@@ -13,9 +13,9 @@ export default function TopStrip() {
           <span>digitalsolution130@gmail.com</span>
         </a>
         <span className="strip-divider">|</span>
-        <a href="tel:01307966590" className="strip-item">
+        <a href="tel:7419353376" className="strip-item">
           <Phone size={13} />
-          <span>0130-7966590</span>
+          <span>7419353376</span>
         </a>
       </div>
     </div>
