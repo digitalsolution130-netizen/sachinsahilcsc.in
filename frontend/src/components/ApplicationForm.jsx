@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { FileEdit, Camera, FolderOpen, Trash2, ArrowRight, ShieldCheck } from 'lucide-react';
+import { FileEdit, Camera, FolderOpen, Trash2, ArrowRight, ShieldCheck, Loader2 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { SERVICES_LIST } from '../data/servicesData';
 import { submitApplication } from '../services/storageService';
@@ -22,6 +22,7 @@ export default function ApplicationForm({
   const [serviceId, setServiceId] = useState('');
   const [remarks, setRemarks] = useState('');
   const [attachedDocs, setAttachedDocs] = useState([]);
+  const [isFileLoading, setIsFileLoading] = useState(false);
   
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [isFeeModalOpen, setIsFeeModalOpen] = useState(false);
@@ -78,6 +79,7 @@ export default function ApplicationForm({
       return;
     }
 
+    setIsFileLoading(true);
     let loadedCount = 0;
     const newItems = [];
 
@@ -94,7 +96,14 @@ export default function ApplicationForm({
         loadedCount++;
         if (loadedCount === validFiles.length) {
           setAttachedDocs((prev) => [...prev, ...newItems]);
+          setIsFileLoading(false);
           showToast(`📎 ${newItems.length} दस्तावेज़ सफलतापूर्वक जोड़े गए!`, 'success');
+        }
+      };
+      reader.onerror = () => {
+        loadedCount++;
+        if (loadedCount === validFiles.length) {
+          setIsFileLoading(false);
         }
       };
       reader.readAsDataURL(file);
@@ -428,6 +437,13 @@ export default function ApplicationForm({
                 />
               </label>
             </div>
+
+            {isFileLoading && (
+              <div className="file-reading-loader">
+                <Loader2 size={16} className="spin-icon" color="#0284c7" />
+                <span>दस्तावेज़ प्रोसेस / लोड हो रहे हैं, कृपया प्रतीक्षा करें...</span>
+              </div>
+            )}
 
             <small style={{ display: 'block', marginTop: '6px', fontSize: '0.78rem', color: '#64748b' }}>
               💡 आप एक साथ कई दस्तावेज़ (PDF, JPEG, JPG, PNG) या कैमरा फोटो संलग्न कर सकते हैं।

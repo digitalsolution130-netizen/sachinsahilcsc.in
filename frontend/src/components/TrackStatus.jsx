@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, CheckCircle, Clock, XCircle, FileText } from 'lucide-react';
+import { Search, CheckCircle, Clock, XCircle, FileText, Loader2 } from 'lucide-react';
 import { getApplicationByAck } from '../services/storageService';
 import { apiTrackApplication } from '../services/api';
 
@@ -7,6 +7,7 @@ export default function TrackStatus({ showToast }) {
   const [ackQuery, setAckQuery] = useState('');
   const [searchResult, setSearchResult] = useState(null);
   const [hasSearched, setHasSearched] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const handleTrack = async (e) => {
     e.preventDefault();
@@ -16,12 +17,13 @@ export default function TrackStatus({ showToast }) {
       return;
     }
 
-    setHasSearched(true);
+    setLoading(true);
+    setHasSearched(false);
     let result = null;
 
     try {
       const res = await apiTrackApplication(query);
-      if (res.success && res.application) {
+      if (res && res.success && res.application) {
         result = res.application;
       }
     } catch (err) {
@@ -33,6 +35,8 @@ export default function TrackStatus({ showToast }) {
     }
 
     setSearchResult(result);
+    setHasSearched(true);
+    setLoading(false);
 
     if (result) {
       showToast('आवेदन की जानकारी मिल गई!', 'success');
@@ -78,14 +82,35 @@ export default function TrackStatus({ showToast }) {
           placeholder="अपना Acknowledgment नंबर दर्ज करें (उदा: DSK-842911)"
           value={ackQuery}
           onChange={(e) => setAckQuery(e.target.value)}
+          disabled={loading}
         />
-        <button type="submit" className="track-btn">
-          <Search size={15} />
-          <span>Check Status</span>
+        <button type="submit" className="track-btn" disabled={loading}>
+          {loading ? (
+            <>
+              <Loader2 size={15} className="spin-icon" />
+              <span>डेटा लोड हो रहा है...</span>
+            </>
+          ) : (
+            <>
+              <Search size={15} />
+              <span>Check Status</span>
+            </>
+          )}
         </button>
       </form>
 
-      {hasSearched && (
+      {/* Loading Indicator for Track Status */}
+      {loading && (
+        <div className="track-loading-box">
+          <Loader2 size={24} className="spin-icon" color="#f59e0b" />
+          <div>
+            <strong>डेटा लोड हो रहा है, कृपया प्रतीक्षा करें...</strong>
+            <p>सर्वर से आपके आवेदन की स्थिति खोजी जा रही है।</p>
+          </div>
+        </div>
+      )}
+
+      {!loading && hasSearched && (
         <div className="track-result-wrapper">
           {searchResult ? (
             <div className="track-result-card track-success-box">

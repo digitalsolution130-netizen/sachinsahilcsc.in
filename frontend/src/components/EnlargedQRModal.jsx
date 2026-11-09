@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, CheckCircle2, Wallet, QrCode } from 'lucide-react';
+import { X, CheckCircle2, Wallet, QrCode, Loader2 } from 'lucide-react';
 import PhonePeCard from './PhonePeCard';
 import { submitTopupRequest } from '../services/storageService';
 import { apiSubmitTopup } from '../services/api';
@@ -56,6 +56,17 @@ export default function EnlargedQRModal({ isOpen, onClose, userEmail, userPhone,
   return (
     <div className="modal-backdrop">
       <div className="modal-content fee-payment-modal">
+        {/* Processing Loader Overlay */}
+        {submitting && (
+          <div className="modal-processing-overlay">
+            <div className="modal-processing-content">
+              <Loader2 size={36} className="spin-icon" color="#15803d" />
+              <h4>डेटा प्रोसेस हो रहा है, कृपया प्रतीक्षा करें...</h4>
+              <p>रीचार्ज रिक्वेस्ट एवं UTR नंबर सर्वर पर भेजा जा रहा है...</p>
+            </div>
+          </div>
+        )}
+
         <div className="modal-header">
           <div className="modal-title-row">
             <Wallet size={20} color="#15803d" />
@@ -105,8 +116,17 @@ export default function EnlargedQRModal({ isOpen, onClose, userEmail, userPhone,
               className="btn-submit btn-green-submit"
               disabled={submitting}
             >
-              <CheckCircle2 size={16} />
-              <span>{submitting ? 'Submitting...' : '✅ सबमिट करें (Add Balance to Wallet)'}</span>
+              {submitting ? (
+                <>
+                  <Loader2 size={16} className="spin-icon" />
+                  <span>डेटा प्रोसेस हो रहा है, कृपया प्रतीक्षा करें...</span>
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 size={16} />
+                  <span>✅ सबमिट करें (Add Balance to Wallet)</span>
+                </>
+              )}
             </button>
           </form>
         </div>

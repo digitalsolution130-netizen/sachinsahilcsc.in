@@ -16,6 +16,27 @@ export const getApiBaseUrl = () => {
 
 const API_BASE = getApiBaseUrl();
 
+// Global request loading state tracker
+let activeRequests = 0;
+const loadingListeners = new Set();
+
+export const subscribeToLoading = (callback) => {
+  loadingListeners.add(callback);
+  callback(activeRequests > 0);
+  return () => loadingListeners.delete(callback);
+};
+
+const notifyLoading = () => {
+  const isLoading = activeRequests > 0;
+  loadingListeners.forEach((cb) => {
+    try {
+      cb(isLoading);
+    } catch (e) {
+      console.error('Loading listener error:', e);
+    }
+  });
+};
+
 // Helper for HTTP requests
 async function request(endpoint, options = {}) {
   const token = localStorage.getItem('portal_token_v2');
@@ -36,6 +57,13 @@ async function request(endpoint, options = {}) {
   const base = getApiBaseUrl();
   const url = `${base}${endpoint}`;
 
+  const isBackground = options.isBackground || (endpoint.startsWith('/wallet/balance/') && !options.isManual);
+
+  if (!isBackground) {
+    activeRequests++;
+    notifyLoading();
+  }
+
   try {
     const res = await fetch(url, {
       ...options,
@@ -46,6 +74,11 @@ async function request(endpoint, options = {}) {
   } catch (err) {
     console.warn(`[API] Error contacting ${url}:`, err.message);
     throw err;
+  } finally {
+    if (!isBackground) {
+      activeRequests = Math.max(0, activeRequests - 1);
+      notifyLoading();
+    }
   }
 }
 
@@ -105,9 +138,10 @@ export const apiSubmitTopup = async (email, amount, utr) => {
   });
 };
 
-export const apiGetBalance = async (email) => {
+export const apiGetBalance = async (email, options = {}) => {
   return await request(`/wallet/balance/${encodeURIComponent(email)}`, {
-    method: 'GET'
+    method: 'GET',
+    ...options
   });
 };
 

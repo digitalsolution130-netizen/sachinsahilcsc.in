@@ -21,17 +21,27 @@ import {
   getWalletBalance,
   setWalletBalance as setLocalWalletBalance
 } from './services/storageService';
-import { apiGetBalance } from './services/api';
+import { apiGetBalance, subscribeToLoading } from './services/api';
+import { Loader2 } from 'lucide-react';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [walletBalance, setWalletBalance] = useState(0);
   const [isRefreshingBal, setIsRefreshingBal] = useState(false);
+  const [globalLoading, setGlobalLoading] = useState(false);
   const [isAdminView, setIsAdminView] = useState(false);
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
   const [isQRModalOpen, setIsQRModalOpen] = useState(false);
   const [selectedService, setSelectedService] = useState(null);
   const [toasts, setToasts] = useState([]);
+
+  // Subscribe to global API loading
+  useEffect(() => {
+    const unsubscribe = subscribeToLoading((isLoading) => {
+      setGlobalLoading(isLoading);
+    });
+    return unsubscribe;
+  }, []);
 
   // Toast notifier
   const showToast = useCallback((message, type = 'info') => {
@@ -47,11 +57,11 @@ export default function App() {
   };
 
   // Fetch balance live from backend MongoDB Atlas
-  const fetchUserBalance = useCallback(async (email) => {
+  const fetchUserBalance = useCallback(async (email, isBackground = false) => {
     if (!email) return;
-    setIsRefreshingBal(true);
+    if (!isBackground) setIsRefreshingBal(true);
     try {
-      const res = await apiGetBalance(email);
+      const res = await apiGetBalance(email, { isBackground });
       if (res && res.success && typeof res.balance === 'number') {
         setWalletBalance(res.balance);
         setLocalWalletBalance(email, res.balance);
@@ -60,7 +70,7 @@ export default function App() {
     } catch (err) {
       console.warn('Backend balance fetch failed, using fallback:', err.message);
     } finally {
-      setIsRefreshingBal(false);
+      if (!isBackground) setIsRefreshingBal(false);
     }
 
     // Local fallback
@@ -85,11 +95,11 @@ export default function App() {
 
     const userKey = currentUser.email || currentUser.phone;
     const interval = setInterval(() => {
-      fetchUserBalance(userKey);
+      fetchUserBalance(userKey, true);
     }, 8000);
 
     const handleFocus = () => {
-      fetchUserBalance(userKey);
+      fetchUserBalance(userKey, true);
     };
     window.addEventListener('focus', handleFocus);
 
@@ -102,7 +112,7 @@ export default function App() {
   const refreshBalance = useCallback(() => {
     if (currentUser) {
       const userKey = currentUser.email || currentUser.phone;
-      fetchUserBalance(userKey);
+      fetchUserBalance(userKey, false);
     }
   }, [currentUser, fetchUserBalance]);
 
@@ -127,6 +137,17 @@ export default function App() {
 
   return (
     <div className="portal-app">
+      {/* Global Top Shimmer Progress Bar for active processing */}
+      {globalLoading && <div className="global-top-progress-bar" />}
+
+      {/* Global Processing Floating Notification Pill */}
+      {globalLoading && (
+        <div className="global-processing-pill">
+          <Loader2 size={16} className="spin-icon" color="#ff6b00" />
+          <span>डेटा लोड / प्रोसेस हो रहा है, कृपया प्रतीक्षा करें...</span>
+        </div>
+      )}
+
       {/* Toast Notification Container */}
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
 

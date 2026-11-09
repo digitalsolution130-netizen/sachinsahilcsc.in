@@ -11,7 +11,8 @@ import {
   RefreshCw,
   Eye,
   Plus,
-  Minus
+  Minus,
+  Loader2
 } from 'lucide-react';
 import {
   apiAdminGetTopups,
@@ -29,6 +30,7 @@ export default function AdminPanel({ onExit, showToast }) {
   const [applications, setApplications] = useState([]);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [actionLoadingId, setActionLoadingId] = useState(null);
   const [selectedDocPreview, setSelectedDocPreview] = useState(null);
 
   // Manual wallet adjust state
@@ -81,46 +83,55 @@ export default function AdminPanel({ onExit, showToast }) {
 
   const handleApprove = async (topupItem) => {
     const idToUse = topupItem.requestId || topupItem._id || topupItem.id;
+    setActionLoadingId(`approve_${idToUse}`);
     try {
       const apiRes = await apiAdminApproveTopup(idToUse);
       if (apiRes.success) {
         showToast(`✅ रीचार्ज स्वीकृत! ₹${topupItem.amount} वॉलेट में सफलतापूर्वक क्रेडिट किए गए।`, 'success');
-        reloadData();
+        await reloadData();
         return;
       } else {
         showToast(apiRes.message || 'स्वीकृति में समस्या आई।', 'error');
       }
     } catch (e) {
       showToast('सर्वर से संपर्क करने में समस्या आई।', 'error');
+    } finally {
+      setActionLoadingId(null);
     }
   };
 
   const handleReject = async (topupItem) => {
     const idToUse = topupItem.requestId || topupItem._id || topupItem.id;
+    setActionLoadingId(`reject_${idToUse}`);
     try {
       const apiRes = await apiAdminRejectTopup(idToUse);
       if (apiRes.success) {
         showToast('❌ रीचार्ज रिक्वेस्ट रिजेक्ट कर दी गई।', 'info');
-        reloadData();
+        await reloadData();
       } else {
         showToast(apiRes.message || 'रिजेक्शन में समस्या आई।', 'error');
       }
     } catch (e) {
       showToast('सर्वर से संपर्क करने में समस्या आई।', 'error');
+    } finally {
+      setActionLoadingId(null);
     }
   };
 
   const handleStatusChange = async (ackId, newStatus) => {
+    setActionLoadingId(`status_${ackId}`);
     try {
       const apiRes = await apiAdminUpdateAppStatus(ackId, newStatus);
       if (apiRes.success) {
         showToast(`आवेदन ${ackId} का स्टेटस '${newStatus}' में बदला गया!`, 'success');
-        reloadData();
+        await reloadData();
       } else {
         showToast(apiRes.message || 'स्टेटस अपडेट विफल।', 'error');
       }
     } catch (e) {
       showToast('सर्वर से संपर्क करने में समस्या आई।', 'error');
+    } finally {
+      setActionLoadingId(null);
     }
   };
 
@@ -192,6 +203,13 @@ export default function AdminPanel({ onExit, showToast }) {
       </div>
 
       <div className="container">
+        {loading && (
+          <div className="admin-loading-banner">
+            <Loader2 size={20} className="spin-icon" />
+            <span>सर्वर से डेटा लोड हो रहा है, कृपया प्रतीक्षा करें... (Loading data from server...)</span>
+          </div>
+        )}
+
         {/* Quick Stats Grid */}
         <div className="admin-stats-grid">
           <div className="stat-card stat-blue">
@@ -278,19 +296,39 @@ export default function AdminPanel({ onExit, showToast }) {
                                 type="button" 
                                 className="btn-action btn-approve"
                                 onClick={() => handleApprove(item)}
+                                disabled={actionLoadingId === `approve_${rowKey}`}
                                 title="Approve and Credit Wallet"
                               >
-                                <Check size={13} />
-                                <span>Approve (Credit)</span>
+                                {actionLoadingId === `approve_${rowKey}` ? (
+                                  <>
+                                    <Loader2 size={13} className="spin-icon" />
+                                    <span>स्वीकृत हो रहा है...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Check size={13} />
+                                    <span>Approve (Credit)</span>
+                                  </>
+                                )}
                               </button>
                               <button 
                                 type="button" 
                                 className="btn-action btn-reject"
                                 onClick={() => handleReject(item)}
+                                disabled={actionLoadingId === `reject_${rowKey}`}
                                 title="Reject Top-up"
                               >
-                                <X size={13} />
-                                <span>Reject</span>
+                                {actionLoadingId === `reject_${rowKey}` ? (
+                                  <>
+                                    <Loader2 size={13} className="spin-icon" />
+                                    <span>रिजेक्ट हो रहा है...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <X size={13} />
+                                    <span>Reject</span>
+                                  </>
+                                )}
                               </button>
                             </div>
                           ) : (
@@ -521,17 +559,23 @@ export default function AdminPanel({ onExit, showToast }) {
                           </span>
                         </td>
                         <td>
-                          <select 
-                            className="status-selector"
-                            value={app.status}
-                            onChange={(e) => handleStatusChange(app.ackId, e.target.value)}
-                          >
-                            <option value="Submitted / Processing">Submitted / Processing</option>
-                            <option value="Under Review">Under Review</option>
-                            <option value="Approved">Approved</option>
-                            <option value="Completed">Completed</option>
-                            <option value="Rejected">Rejected</option>
-                          </select>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <select 
+                              className="status-selector"
+                              value={app.status}
+                              onChange={(e) => handleStatusChange(app.ackId, e.target.value)}
+                              disabled={actionLoadingId === `status_${app.ackId}`}
+                            >
+                              <option value="Submitted / Processing">Submitted / Processing</option>
+                              <option value="Under Review">Under Review</option>
+                              <option value="Approved">Approved</option>
+                              <option value="Completed">Completed</option>
+                              <option value="Rejected">Rejected</option>
+                            </select>
+                            {actionLoadingId === `status_${app.ackId}` && (
+                              <Loader2 size={14} className="spin-icon" color="#2563eb" />
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );

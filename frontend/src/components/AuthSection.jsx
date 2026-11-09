@@ -451,6 +451,13 @@ export default function AuthSection({ onLoginSuccess, onOpenAdminLogin, showToas
                   </div>
                 </div>
 
+                {loginLoading && (
+                  <div className="processing-notice-box">
+                    <Loader2 size={16} className="spin-icon" color="#ff6b00" />
+                    <span>लॉगिन विवरण सत्यापित किया जा रहा है, कृपया प्रतीक्षा करें...</span>
+                  </div>
+                )}
+
                 <button 
                   type="submit" 
                   className="btn-submit btn-navy-submit"
@@ -550,6 +557,13 @@ export default function AuthSection({ onLoginSuccess, onOpenAdminLogin, showToas
                         />
                       </div>
                     </div>
+
+                    {regLoading && (
+                      <div className="processing-notice-box">
+                        <Loader2 size={16} className="spin-icon" color="#ff6b00" />
+                        <span>ईमेल सर्वर से OTP भेजा जा रहा है, कृपया प्रतीक्षा करें...</span>
+                      </div>
+                    )}
 
                     <button 
                       type="submit" 
@@ -682,6 +696,13 @@ export default function AuthSection({ onLoginSuccess, onOpenAdminLogin, showToas
                       </div>
                     </div>
 
+                    {regLoading && (
+                      <div className="processing-notice-box">
+                        <Loader2 size={16} className="spin-icon" color="#ff6b00" />
+                        <span>खाता बनाया जा रहा है, कृपया प्रतीक्षा करें...</span>
+                      </div>
+                    )}
+
                     <button 
                       type="submit" 
                       className="btn-submit btn-green-submit"
@@ -753,6 +774,13 @@ export default function AuthSection({ onLoginSuccess, onOpenAdminLogin, showToas
                         />
                       </div>
                     </div>
+
+                    {forgotLoading && (
+                      <div className="processing-notice-box">
+                        <Loader2 size={16} className="spin-icon" color="#ff6b00" />
+                        <span>पासवर्ड रीसेट OTP भेजा जा रहा है, कृपया प्रतीक्षा करें...</span>
+                      </div>
+                    )}
 
                     <button 
                       type="submit" 
@@ -867,6 +895,13 @@ export default function AuthSection({ onLoginSuccess, onOpenAdminLogin, showToas
                         </button>
                       </div>
                     </div>
+
+                    {forgotLoading && (
+                      <div className="processing-notice-box">
+                        <Loader2 size={16} className="spin-icon" color="#ff6b00" />
+                        <span>नया पासवर्ड अपडेट किया जा रहा है, कृपया प्रतीक्षा करें...</span>
+                      </div>
+                    )}
 
                     <button 
                       type="submit" 

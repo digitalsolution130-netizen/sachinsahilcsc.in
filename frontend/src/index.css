@@ -140,6 +140,7 @@ body {
 }
 
 .modal-content {
+  position: relative;
   background: #ffffff;
   border-radius: 8px;
   width: 100%;

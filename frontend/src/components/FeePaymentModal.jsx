@@ -61,12 +61,27 @@ export default function FeePaymentModal({
   return (
     <div className="modal-backdrop">
       <div className="modal-content fee-payment-modal">
+        {/* Processing Loader Overlay */}
+        {(isSubmitting || isWalletPaying) && (
+          <div className="modal-processing-overlay">
+            <div className="modal-processing-content">
+              <Loader2 size={38} className="spin-icon" color="#ff6b00" />
+              <h4>डेटा प्रोसेस हो रहा है, कृपया प्रतीक्षा करें...</h4>
+              <p>
+                {isWalletPaying 
+                  ? 'वॉलेट से शुल्क काटा जा रहा है एवं रसीद तैयार की जा रही है...' 
+                  : 'पेमेंट UTR सत्यापित किया जा रहा है एवं रसीद जनरेट हो रही है...'}
+              </p>
+            </div>
+          </div>
+        )}
+
         <div className="modal-header">
           <div className="modal-title-row">
             <QrCode size={20} color="#ff6b00" />
             <h3 className="modal-title">💳 फीस भुगतान (Pay Service Fees)</h3>
           </div>
-          <button type="button" className="btn-close-modal" onClick={onClose} title="Close">
+          <button type="button" className="btn-close-modal" onClick={onClose} title="Close" disabled={isSubmitting || isWalletPaying}>
             <X size={20} />
           </button>
         </div>
@@ -153,12 +168,19 @@ export default function FeePaymentModal({
               <button 
                 type="submit" 
                 className="btn-submit btn-saffron-submit"
-                disabled={isSubmitting}
+                disabled={isSubmitting || isWalletPaying}
               >
-                <CheckCircle2 size={16} />
-                <span>
-                  {isSubmitting ? 'Verifying & Submitting...' : `✅ Submit Payment & Generate Slip (₹${fee})`}
-                </span>
+                {isSubmitting ? (
+                  <>
+                    <Loader2 size={16} className="spin-icon" />
+                    <span>डेटा प्रोसेस हो रहा है, कृपया प्रतीक्षा करें...</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 size={16} />
+                    <span>✅ Submit Payment & Generate Slip (₹{fee})</span>
+                  </>
+                )}
               </button>
             </form>
           </div>
