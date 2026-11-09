@@ -18,6 +18,7 @@ import {
   initSeedData, 
   getActiveUser, 
   logoutUser, 
+  isSessionExpired,
   getWalletBalance,
   setWalletBalance as setLocalWalletBalance
 } from './services/storageService';
@@ -108,6 +109,35 @@ export default function App() {
       window.removeEventListener('focus', handleFocus);
     };
   }, [currentUser, fetchUserBalance]);
+
+  // 30-minute automatic session expiration checker
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const checkSession = () => {
+      if (isSessionExpired()) {
+        logoutUser();
+        setCurrentUser(null);
+        setWalletBalance(0);
+        setIsAdminView(false);
+        showToast('🔒 सुरक्षा कारणों से 30 मिनट का सेशन समाप्त हो गया है। कृपया पुनः लॉगिन करें।', 'info');
+      }
+    };
+
+    // Check periodically every 5 seconds
+    const interval = setInterval(checkSession, 5000);
+
+    // Also check on tab focus
+    const handleFocus = () => {
+      checkSession();
+    };
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [currentUser, showToast]);
 
   const refreshBalance = useCallback(() => {
     if (currentUser) {

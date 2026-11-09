@@ -5,8 +5,12 @@ const STORAGE_KEYS = {
   PENDING_TOPUPS: 'portal_pending_topups_v2',
   APPLICATIONS: 'portal_apps_v2',
   ACTIVE_USER: 'portal_active_user_v2',
-  ADMIN_LOGGED_IN: 'portal_admin_session_v2'
+  ADMIN_LOGGED_IN: 'portal_admin_session_v2',
+  SESSION_START: 'portal_session_start_v2'
 };
+
+// 30 Minutes Session Timeout
+export const SESSION_TIMEOUT_MS = 30 * 60 * 1000;
 
 function safeGet(key, fallback) {
   try {
@@ -75,18 +79,58 @@ export function initSeedData() {
   }
 }
 
-// User Auth
+// User Auth with 30-Minute Session Limit
+export function isSessionExpired() {
+  const user = safeGet(STORAGE_KEYS.ACTIVE_USER, null);
+  if (!user) return true;
+
+  const sessionStartStr = localStorage.getItem(STORAGE_KEYS.SESSION_START);
+  if (!sessionStartStr) return false;
+
+  const sessionStart = Number(sessionStartStr);
+  return (Date.now() - sessionStart) >= SESSION_TIMEOUT_MS;
+}
+
+export function getSessionRemainingTime() {
+  const sessionStartStr = localStorage.getItem(STORAGE_KEYS.SESSION_START);
+  if (!sessionStartStr) return 0;
+  const sessionStart = Number(sessionStartStr);
+  const remaining = SESSION_TIMEOUT_MS - (Date.now() - sessionStart);
+  return remaining > 0 ? remaining : 0;
+}
+
 export function getActiveUser() {
-  return safeGet(STORAGE_KEYS.ACTIVE_USER, null);
+  const user = safeGet(STORAGE_KEYS.ACTIVE_USER, null);
+  if (!user) return null;
+
+  const sessionStartStr = localStorage.getItem(STORAGE_KEYS.SESSION_START);
+  if (!sessionStartStr) {
+    // If active user exists without timestamp, initialize 30-minute session from now
+    localStorage.setItem(STORAGE_KEYS.SESSION_START, String(Date.now()));
+    return user;
+  }
+
+  const sessionStart = Number(sessionStartStr);
+  if (Date.now() - sessionStart >= SESSION_TIMEOUT_MS) {
+    logoutUser();
+    return null;
+  }
+
+  return user;
 }
 
 export function setActiveUser(user) {
   safeSet(STORAGE_KEYS.ACTIVE_USER, user);
+  try {
+    localStorage.setItem(STORAGE_KEYS.SESSION_START, String(Date.now()));
+  } catch (e) {}
 }
 
 export function logoutUser() {
   try {
     localStorage.removeItem(STORAGE_KEYS.ACTIVE_USER);
+    localStorage.removeItem(STORAGE_KEYS.SESSION_START);
+    localStorage.removeItem('portal_token_v2');
   } catch (e) {}
 }
 

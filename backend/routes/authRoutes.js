@@ -163,7 +163,7 @@ router.post('/register-complete', async (req, res) => {
     const token = jwt.sign(
       { id: user._id, email: user.email, role: user.role },
       JWT_SECRET,
-      { expiresIn: '30d' }
+      { expiresIn: '30m' }
     );
 
     return res.status(201).json({
@@ -235,7 +235,7 @@ router.post('/login', async (req, res) => {
     const token = jwt.sign(
       { id: user._id, email: user.email, role: user.role },
       JWT_SECRET,
-      { expiresIn: '30d' }
+      { expiresIn: '30m' }
     );
 
     return res.status(200).json({
